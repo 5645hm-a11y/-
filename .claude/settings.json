@@ -1,0 +1,22 @@
+{
+  "permissions": {
+    "allow": [
+      "WebFetch(domain:api.anthropic.com)",
+      "Read(//c/Users/1/AppData/Local/Temp/design_extract/untitled/project/src/**)",
+      "Read(//c/Users/1/AppData/Local/Temp/design_extract/untitled/project/**)",
+      "Bash(npm run *)",
+      "Read(//c/Users/1/AppData/Local/electron-builder/Cache/winCodeSign/**)",
+      "Bash(Start-Sleep -Seconds 2)",
+      "Bash(curl -s http://localhost:3000/api/orders/next-id)",
+      "Bash(Start-Process \"http://localhost:3000\")",
+      "PowerShell(Start-Process \"http://localhost:3000\")",
+      "Bash(powershell -Command \"Get-WmiObject -Class Win32_Printer | Select-Object Name, DriverName, PortName, PrinterStatus, WorkOffline, Local, Network, Shared, Default | ConvertTo-Json\")",
+      "Bash(pkill -f \"node server.js\")",
+      "Bash(node server.js)",
+      "Bash(powershell -Command \"Get-PrinterProperty -PrinterName 'Xerox Phaser 3020' -ErrorAction SilentlyContinue | ConvertTo-Json\")"
+    ],
+    "additionalDirectories": [
+      "e:\\D�veloppement\\??'??"
+    ]
+  }
+}

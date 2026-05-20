@@ -1,0 +1,46 @@
+{
+  "name": "magic-print",
+  "version": "1.0.0",
+  "description": "מג'יק פרינט - מערכת ניהול בית דפוס",
+  "main": "main.js",
+  "scripts": {
+    "start": "electron .",
+    "build": "electron-builder --win --x64"
+  },
+  "dependencies": {
+    "express": "^4.21.2",
+    "multer": "^2.1.1"
+  },
+  "devDependencies": {
+    "electron": "^35.0.0",
+    "electron-builder": "^25.1.8"
+  },
+  "build": {
+    "appId": "il.co.magic-print",
+    "productName": "מג'יק פרינט",
+    "copyright": "Copyright © 2026 מג'יק דפוס",
+    "asar": false,
+    "win": {
+      "target": "nsis",
+      "icon": "build/icon.png"
+    },
+    "nsis": {
+      "oneClick": false,
+      "allowToChangeInstallationDirectory": true,
+      "createDesktopShortcut": true,
+      "createStartMenuShortcut": true,
+      "language": "1037"
+    },
+    "files": [
+      "**/*",
+      "!.claude/**",
+      "!dist/**",
+      "!*.md",
+      "!start.bat",
+      "!magic_print.db"
+    ],
+    "directories": {
+      "output": "dist"
+    }
+  }
+}
