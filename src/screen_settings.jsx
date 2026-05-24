@@ -50,16 +50,19 @@ const LanTab = () => {
 
   React.useEffect(() => { load(); }, []);
 
-  // Build QR code when LAN is active and we have an IP
+  // Build QR code when LAN is actually active and div is mounted
   React.useEffect(() => {
-    if (!info?.lanMode || !info?.localIPs?.[0] || !qrRef.current) return;
-    const url = `http://${info.localIPs[0]}:${info.port || 3000}`;
-    if (qrInstance.current) { qrInstance.current.clear(); qrInstance.current.makeCode(url); }
-    else {
+    if (!info?.lanActive || !info?.localIPs?.[0]) return;
+    const qrUrl = `http://${info.localIPs[0]}:${info.port || 3000}`;
+    // Use a small timeout to ensure the conditional div has rendered
+    const t = setTimeout(() => {
+      if (!qrRef.current) return;
       try {
-        qrInstance.current = new QRCode(qrRef.current, { text: url, width: 160, height: 160, colorDark: '#181C1B' });
+        if (qrInstance.current) { qrInstance.current.clear(); qrInstance.current.makeCode(qrUrl); }
+        else { qrInstance.current = new QRCode(qrRef.current, { text: qrUrl, width: 160, height: 160, colorDark: '#181C1B' }); }
       } catch {}
-    }
+    }, 50);
+    return () => clearTimeout(t);
   }, [info]);
 
   const toggle = async (enable) => {
@@ -76,9 +79,15 @@ const LanTab = () => {
     setBusy(false);
   };
 
-  const currentlyLan = info?.lanMode;
-  const url = info?.lanMode && info?.localIPs?.[0]
+  // lanActive = server is actually listening on 0.0.0.0 (after restart)
+  // lanMode   = setting is saved in DB (takes effect after restart)
+  const lanActive = info?.lanActive;
+  const lanSaved  = info?.lanMode;
+  const url = lanActive && info?.localIPs?.[0]
     ? `http://${info.localIPs[0]}:${info.port || 3000}` : null;
+
+  // Show restart-pending state when saved=true but not yet active
+  const pendingRestart = lanSaved && !lanActive;
 
   return (
     <>
@@ -86,30 +95,41 @@ const LanTab = () => {
 
         <div style={{ display: 'flex', alignItems: 'flex-start', gap: 24, marginBottom: 20 }}>
           <div style={{ flex: 1 }}>
+
+            {/* Status banner */}
             <div style={{
               padding: '14px 18px', borderRadius: 12, marginBottom: 14,
-              background: currentlyLan ? 'var(--teal-soft)' : 'var(--bg-deep)',
-              border: `1px solid ${currentlyLan ? 'var(--teal)' : 'var(--border)'}`,
+              background: lanActive ? 'var(--teal-soft)' : pendingRestart ? 'var(--warn-soft)' : 'var(--bg-deep)',
+              border: `1px solid ${lanActive ? 'var(--teal)' : pendingRestart ? 'var(--warn)' : 'var(--border)'}`,
             }}>
-              <div style={{ fontWeight: 700, fontSize: 14, marginBottom: 6, color: currentlyLan ? 'var(--teal-3)' : 'var(--text)' }}>
-                {info === null ? 'טוען...' : currentlyLan ? '✓ LAN פעיל' : 'LAN כבוי — רק מחשב זה יכול לגשת'}
+              <div style={{ fontWeight: 700, fontSize: 14, marginBottom: 6,
+                color: lanActive ? 'var(--teal-3)' : pendingRestart ? 'var(--warn)' : 'var(--text)' }}>
+                {info === null ? 'טוען...'
+                  : lanActive       ? '✓ LAN פעיל — מחשבים ברשת יכולים להתחבר'
+                  : pendingRestart  ? '⏳ LAN מוגדר — יכנס לתוקף לאחר הפעלה מחדש'
+                  :                   'LAN כבוי — רק מחשב זה יכול לגשת'}
               </div>
-              {currentlyLan && url && (
+              {lanActive && url && (
                 <div style={{ fontSize: 13, color: 'var(--text-muted)' }}>
                   כתובת גישה: <b style={{ fontFamily: 'monospace', color: 'var(--teal-3)' }}>{url}</b>
                 </div>
               )}
-              {currentlyLan && info?.localIPs?.length > 1 && (
+              {lanActive && info?.localIPs?.length > 1 && (
                 <div style={{ marginTop: 6, fontSize: 12, color: 'var(--text-muted)' }}>
                   כתובות IP נוספות: {info.localIPs.slice(1).map(ip => (
                     <span key={ip} style={{ fontFamily: 'monospace', marginInlineStart: 6 }}>{ip}</span>
                   ))}
                 </div>
               )}
+              {pendingRestart && (
+                <div style={{ fontSize: 13, color: 'var(--warn)', marginTop: 4 }}>
+                  סגור ופתח מחדש את האפליקציה כדי שהשינוי יכנס לתוקף
+                </div>
+              )}
             </div>
 
             <div style={{ display: 'flex', gap: 10, marginBottom: 14 }}>
-              {!currentlyLan ? (
+              {!lanSaved ? (
                 <button className="btn teal" onClick={() => toggle(true)} disabled={busy}>
                   <Icon name="refresh" size={14} /> הפעל LAN
                 </button>
@@ -132,17 +152,20 @@ const LanTab = () => {
 
             <div style={{ fontSize: 12, color: 'var(--text-muted)', lineHeight: 1.7, background: 'var(--bg-deep)', padding: '12px 16px', borderRadius: 10 }}>
               <b>הוראות חיבור:</b><br />
-              1. הפעל LAN ואתחל את האפליקציה מחדש<br />
-              2. מחשבים אחרים ברשת — פתח דפדפן → <span style={{ fontFamily: 'monospace' }}>{url || 'http://IP:3000'}</span><br />
+              1. הפעל LAN וסגור/פתח את האפליקציה מחדש<br />
+              2. מחשבים אחרים ברשת — פתח דפדפן → {url
+                ? <b style={{ fontFamily: 'monospace' }}>{url}</b>
+                : <span style={{ fontFamily: 'monospace' }}>http://IP:3000</span>}<br />
               3. סרוק את ה-QR code מכל מכשיר ברשת
             </div>
           </div>
 
-          {currentlyLan && url && (
+          {/* QR code — only when LAN is actually active */}
+          {lanActive && url && (
             <div style={{ textAlign: 'center', flexShrink: 0 }}>
               <div style={{ fontSize: 12, color: 'var(--text-muted)', marginBottom: 8 }}>סרוק לגישה מהירה</div>
               <div ref={qrRef} style={{ background: '#fff', padding: 8, borderRadius: 10, display: 'inline-block' }} />
-              <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 6 }}>{url}</div>
+              <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 6, fontFamily: 'monospace' }}>{url}</div>
             </div>
           )}
         </div>

@@ -379,6 +379,7 @@ function tryListen(server, startPort, host = '127.0.0.1') {
 
 // ─── Express app ──────────────────────────────────────────────────────────────
 let _actualPort = 3000;
+let _actualHost = '127.0.0.1';
 
 function startServer(preferredPort) {
   return new Promise((resolve, reject) => {
@@ -713,8 +714,9 @@ function startServer(preferredPort) {
     // ── GET /api/network-info ─────────────────────────────────────────────────
     app.get('/api/network-info', (req, res) => {
       try {
-        const lanMode = db.prepare("SELECT value FROM meta WHERE key='lan_mode'").get()?.value === 'true';
-        res.json({ lanMode, localIPs: getLocalIPs(), port: _actualPort });
+        const lanSaved  = db.prepare("SELECT value FROM meta WHERE key='lan_mode'").get()?.value === 'true';
+        const lanActive = _actualHost === '0.0.0.0'; // actually listening on all interfaces
+        res.json({ lanMode: lanSaved, lanActive, localIPs: getLocalIPs(), port: _actualPort });
       } catch (err) {
         res.status(500).json({ error: err.message });
       }
@@ -1288,6 +1290,7 @@ function startServer(preferredPort) {
     tryListen(srv, preferredPort, bindHost)
       .then(port => {
         _actualPort = port;
+        _actualHost = bindHost;
         console.log(`\nמג'יק פרינט · שרת פועל על http://localhost:${port}\n`);
         resolve({ server: srv, port, lanMode, localIPs: getLocalIPs() });
       })
