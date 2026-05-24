@@ -37,6 +37,120 @@ const SaveBar = ({ saving, saved, onSave, dirty }) => (
   </div>
 );
 
+// ── LAN tab ───────────────────────────────────────────────────────────────────
+const LanTab = () => {
+  const [info,    setInfo]    = React.useState(null);
+  const [busy,    setBusy]    = React.useState(false);
+  const [msg,     setMsg]     = React.useState(null);
+  const qrRef = React.useRef(null);
+  const qrInstance = React.useRef(null);
+
+  const load = () =>
+    fetch('/api/network-info').then(r => r.json()).then(setInfo).catch(() => {});
+
+  React.useEffect(() => { load(); }, []);
+
+  // Build QR code when LAN is active and we have an IP
+  React.useEffect(() => {
+    if (!info?.lanMode || !info?.localIPs?.[0] || !qrRef.current) return;
+    const url = `http://${info.localIPs[0]}:${info.port || 3000}`;
+    if (qrInstance.current) { qrInstance.current.clear(); qrInstance.current.makeCode(url); }
+    else {
+      try {
+        qrInstance.current = new QRCode(qrRef.current, { text: url, width: 160, height: 160, colorDark: '#181C1B' });
+      } catch {}
+    }
+  }, [info]);
+
+  const toggle = async (enable) => {
+    setBusy(true); setMsg(null);
+    try {
+      const r = await fetch(enable ? '/api/lan/enable' : '/api/lan/disable', { method: 'POST' });
+      const d = await r.json();
+      if (d.error) throw new Error(d.error);
+      setMsg({ ok: true, text: 'השינוי יכנס לתוקף לאחר הפעלה מחדש של האפליקציה' });
+      await load();
+    } catch (e) {
+      setMsg({ ok: false, text: e.message });
+    }
+    setBusy(false);
+  };
+
+  const currentlyLan = info?.lanMode;
+  const url = info?.lanMode && info?.localIPs?.[0]
+    ? `http://${info.localIPs[0]}:${info.port || 3000}` : null;
+
+  return (
+    <>
+      <SSection title="גישה מרשת LAN" subtitle="אפשר למחשבים אחרים בבית הדפוס להתחבר דרך דפדפן">
+
+        <div style={{ display: 'flex', alignItems: 'flex-start', gap: 24, marginBottom: 20 }}>
+          <div style={{ flex: 1 }}>
+            <div style={{
+              padding: '14px 18px', borderRadius: 12, marginBottom: 14,
+              background: currentlyLan ? 'var(--teal-soft)' : 'var(--bg-deep)',
+              border: `1px solid ${currentlyLan ? 'var(--teal)' : 'var(--border)'}`,
+            }}>
+              <div style={{ fontWeight: 700, fontSize: 14, marginBottom: 6, color: currentlyLan ? 'var(--teal-3)' : 'var(--text)' }}>
+                {info === null ? 'טוען...' : currentlyLan ? '✓ LAN פעיל' : 'LAN כבוי — רק מחשב זה יכול לגשת'}
+              </div>
+              {currentlyLan && url && (
+                <div style={{ fontSize: 13, color: 'var(--text-muted)' }}>
+                  כתובת גישה: <b style={{ fontFamily: 'monospace', color: 'var(--teal-3)' }}>{url}</b>
+                </div>
+              )}
+              {currentlyLan && info?.localIPs?.length > 1 && (
+                <div style={{ marginTop: 6, fontSize: 12, color: 'var(--text-muted)' }}>
+                  כתובות IP נוספות: {info.localIPs.slice(1).map(ip => (
+                    <span key={ip} style={{ fontFamily: 'monospace', marginInlineStart: 6 }}>{ip}</span>
+                  ))}
+                </div>
+              )}
+            </div>
+
+            <div style={{ display: 'flex', gap: 10, marginBottom: 14 }}>
+              {!currentlyLan ? (
+                <button className="btn teal" onClick={() => toggle(true)} disabled={busy}>
+                  <Icon name="refresh" size={14} /> הפעל LAN
+                </button>
+              ) : (
+                <button className="btn ghost" onClick={() => toggle(false)} disabled={busy}>
+                  <Icon name="x" size={14} /> כבה LAN
+                </button>
+              )}
+            </div>
+
+            {msg && (
+              <div style={{
+                padding: '10px 14px', borderRadius: 9, fontSize: 13, marginBottom: 10,
+                background: msg.ok ? 'var(--warn-soft)' : 'var(--danger-soft)',
+                color:      msg.ok ? 'var(--warn)'      : 'var(--danger)',
+              }}>
+                {msg.ok ? '⚠ ' : '✗ '}{msg.text}
+              </div>
+            )}
+
+            <div style={{ fontSize: 12, color: 'var(--text-muted)', lineHeight: 1.7, background: 'var(--bg-deep)', padding: '12px 16px', borderRadius: 10 }}>
+              <b>הוראות חיבור:</b><br />
+              1. הפעל LAN ואתחל את האפליקציה מחדש<br />
+              2. מחשבים אחרים ברשת — פתח דפדפן → <span style={{ fontFamily: 'monospace' }}>{url || 'http://IP:3000'}</span><br />
+              3. סרוק את ה-QR code מכל מכשיר ברשת
+            </div>
+          </div>
+
+          {currentlyLan && url && (
+            <div style={{ textAlign: 'center', flexShrink: 0 }}>
+              <div style={{ fontSize: 12, color: 'var(--text-muted)', marginBottom: 8 }}>סרוק לגישה מהירה</div>
+              <div ref={qrRef} style={{ background: '#fff', padding: 8, borderRadius: 10, display: 'inline-block' }} />
+              <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 6 }}>{url}</div>
+            </div>
+          )}
+        </div>
+      </SSection>
+    </>
+  );
+};
+
 // ── Backup tab ────────────────────────────────────────────────────────────────
 const BackupTab = () => {
   const [status,  setStatus]  = React.useState(null);
@@ -168,7 +282,94 @@ const BackupTab = () => {
           </div>
         )}
       </SSection>
+
+      <SSection title="נתיב גיבוי מותאם" subtitle="שמור גיבויים ישירות ל-NAS, כונן רשת או תיקייה חיצונית">
+        <BackupPathForm />
+      </SSection>
+
+      <SSection title="שחזור מגיבוי" subtitle="טען מסד נתונים ישן לשחזור נתונים — האפליקציה תאתחל מחדש">
+        <RestoreBackupForm />
+      </SSection>
     </>
+  );
+};
+
+const BackupPathForm = () => {
+  const [pathVal, setPathVal] = React.useState('');
+  const [busy,    setBusy]    = React.useState(false);
+  const [msg,     setMsg]     = React.useState(null);
+
+  const save = async () => {
+    setBusy(true); setMsg(null);
+    try {
+      const r = await fetch('/api/backup/set-path', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ path: pathVal }),
+      });
+      const d = await r.json();
+      if (d.error) throw new Error(d.error);
+      setMsg({ ok: true, text: pathVal.trim() ? 'נתיב הגיבוי עודכן' : 'חזרנו לנתיב ברירת המחדל' });
+    } catch (e) { setMsg({ ok: false, text: e.message }); }
+    setBusy(false);
+  };
+
+  return (
+    <div style={{ maxWidth: 480 }}>
+      <div style={{ display: 'flex', gap: 8, marginBottom: 8 }}>
+        <SInput value={pathVal} onChange={e => setPathVal(e.target.value)}
+          placeholder='\\\\NAS\\share\\backups  (ריק = נתיב ברירת מחדל)' />
+        <button className="btn teal" onClick={save} disabled={busy} style={{ flexShrink: 0 }}>
+          {busy ? '...' : 'שמור נתיב'}
+        </button>
+      </div>
+      {msg && (
+        <div style={{ fontSize: 12, color: msg.ok ? 'var(--success)' : 'var(--danger)' }}>
+          {msg.ok ? '✓ ' : '✗ '}{msg.text}
+        </div>
+      )}
+      <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 6 }}>
+        השאר ריק כדי להשתמש בנתיב ברירת המחדל (AppData של Windows)
+      </div>
+    </div>
+  );
+};
+
+const RestoreBackupForm = () => {
+  const [busy, setBusy] = React.useState(false);
+  const [msg,  setMsg]  = React.useState(null);
+
+  const restore = async () => {
+    if (!window.confirm('האם אתה בטוח? שחזור יחליף את כל הנתונים הנוכחיים!')) return;
+    setBusy(true); setMsg(null);
+    try {
+      const r = await fetch('/api/backup/restore', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: '{}' });
+      const d = await r.json();
+      if (d.canceled) { setBusy(false); return; }
+      if (d.error) throw new Error(d.error);
+      setMsg({ ok: true, text: 'שחזור הושלם בהצלחה — טוען נתונים מחדש...' });
+      setTimeout(() => window.refreshData(), 1500);
+    } catch (e) { setMsg({ ok: false, text: e.message }); }
+    setBusy(false);
+  };
+
+  return (
+    <div>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 14, marginBottom: 10,
+        padding: '12px 16px', background: 'var(--danger-soft)', borderRadius: 10, fontSize: 13, color: '#8E3939' }}>
+        <Icon name="warning" size={18} />
+        <span>שחזור ידרוס את כל הנתונים הקיימים. בצע גיבוי לפני כן!</span>
+      </div>
+      <button className="btn" style={{ background: 'var(--danger)', color: '#fff', border: 'none' }}
+        onClick={restore} disabled={busy}>
+        <Icon name="box" size={14} /> {busy ? 'משחזר...' : 'שחזר מגיבוי...'}
+      </button>
+      {msg && (
+        <div style={{ marginTop: 10, fontSize: 13, color: msg.ok ? 'var(--success)' : 'var(--danger)' }}>
+          {msg.ok ? '✓ ' : '✗ '}{msg.text}
+        </div>
+      )}
+    </div>
   );
 };
 
@@ -250,12 +451,13 @@ const ChangePasswordForm = () => {
 
 // ── Tab ids ───────────────────────────────────────────────────────────────────
 const TABS = [
-  { id: 'business', label: 'פרטי העסק',          icon: 'building'  },
-  { id: 'tax',      label: 'מע"מ ורשות המיסים',  icon: 'invoice'   },
-  { id: 'update',   label: 'עדכון גרסה',           icon: 'refresh'   },
-  { id: 'backup',   label: 'גיבוי',               icon: 'box'       },
-  { id: 'security', label: 'אבטחה',               icon: 'lock'      },
-  { id: 'about',    label: 'אודות',                icon: 'info'      },
+  { id: 'business', label: 'פרטי העסק',          icon: 'building'     },
+  { id: 'tax',      label: 'מע"מ ורשות המיסים',  icon: 'invoice'      },
+  { id: 'update',   label: 'עדכון גרסה',           icon: 'refresh'      },
+  { id: 'lan',      label: 'רשת LAN',             icon: 'qr'           },
+  { id: 'backup',   label: 'גיבוי',               icon: 'box'          },
+  { id: 'security', label: 'אבטחה',               icon: 'lock'         },
+  { id: 'about',    label: 'אודות',                icon: 'info'         },
 ];
 
 // ── Main Screen ───────────────────────────────────────────────────────────────
@@ -386,6 +588,10 @@ const ScreenSettings = () => {
               <div>
                 <SLabel>כתובת</SLabel>
                 <SInput value={settings.business_address} onChange={e => set('business_address', e.target.value)} placeholder="רחוב, עיר" />
+              </div>
+              <div>
+                <SLabel>אימייל רואה חשבון</SLabel>
+                <SInput type="email" value={settings.accountant_email} onChange={e => set('accountant_email', e.target.value)} placeholder="accountant@example.com" />
               </div>
             </div>
             <SaveBar saving={saving} saved={saved} onSave={saveSettings} dirty={dirty} />
@@ -563,6 +769,9 @@ const ScreenSettings = () => {
         </>
       )}
 
+      {/* ── LAN ──────────────────────────────────────────────────────────────── */}
+      {tab === 'lan' && <LanTab />}
+
       {/* ── גיבוי ────────────────────────────────────────────────────────────── */}
       {tab === 'backup' && <BackupTab />}
 
@@ -593,7 +802,7 @@ const ScreenSettings = () => {
             <div>
               <div style={{ fontWeight: 800, fontSize: 22, marginBottom: 4 }}>מג'יק פרינט</div>
               <div style={{ fontSize: 13, color: 'var(--text-muted)', marginBottom: 12 }}>
-                מערכת ניהול בית דפוס — גרסה 1.0.0
+                מערכת ניהול בית דפוס — גרסה 1.1.0
               </div>
               <div style={{ fontSize: 13, color: 'var(--text-muted)', lineHeight: 1.7 }}>
                 <div>בעל העסק: {settings.business_owner || 'אלי אליאס'}</div>

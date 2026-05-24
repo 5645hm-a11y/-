@@ -146,6 +146,11 @@ function initDB() {
       time TEXT DEFAULT '',
       read INTEGER DEFAULT 0
     );
+
+    CREATE TABLE IF NOT EXISTS credit_deposits (
+      month TEXT PRIMARY KEY,
+      deposited REAL DEFAULT 0
+    );
   `);
 
   // Add attachments column if missing (safe migration)
@@ -303,12 +308,22 @@ function getUploadsDir() {
 function pad2(n) { return String(n).padStart(2, '0'); }
 
 function getBackupsDir() {
+  // Check for user-configured override path (NAS / network share)
+  try {
+    const override = db?.prepare("SELECT value FROM meta WHERE key='backup_path_override'").get()?.value;
+    if (override?.trim()) return override.trim();
+  } catch {}
   try {
     const { app: eApp } = require('electron');
     if (eApp && typeof eApp.getPath === 'function')
       return path.join(eApp.getPath('userData'), 'backups');
   } catch {}
   return path.join(__dirname, 'backups');
+}
+
+function getLocalIPs() {
+  const nets = require('os').networkInterfaces();
+  return Object.values(nets).flat().filter(a => a && a.family === 'IPv4' && !a.internal).map(a => a.address);
 }
 
 function doBackup() {
@@ -346,7 +361,7 @@ function autoBackup() {
 }
 
 // ─── Dynamic port: try startPort … startPort+9 ───────────────────────────────
-function tryListen(server, startPort) {
+function tryListen(server, startPort, host = '127.0.0.1') {
   return new Promise((resolve, reject) => {
     const attempt = (port) => {
       server.once('error', (err) => {
@@ -356,13 +371,15 @@ function tryListen(server, startPort) {
           reject(err);
         }
       });
-      server.listen(port, '127.0.0.1', () => resolve(port));
+      server.listen(port, host, () => resolve(port));
     };
     attempt(startPort);
   });
 }
 
 // ─── Express app ──────────────────────────────────────────────────────────────
+let _actualPort = 3000;
+
 function startServer(preferredPort) {
   return new Promise((resolve, reject) => {
     try {
@@ -372,6 +389,9 @@ function startServer(preferredPort) {
       reject(new Error(`DB init failed: ${err.message}`));
       return;
     }
+
+    const lanMode  = db.prepare("SELECT value FROM meta WHERE key='lan_mode'").get()?.value === 'true';
+    const bindHost = lanMode ? '0.0.0.0' : '127.0.0.1';
 
     const app = express();
     app.use(express.json());
@@ -392,7 +412,8 @@ function startServer(preferredPort) {
         const supplierInvoices = db.prepare('SELECT * FROM supplier_invoices ORDER BY date DESC, id DESC').all();
         const inventory = db.prepare('SELECT * FROM inventory ORDER BY category, name').all()
           .map(i => ({ ...i, min: i.min_stock }));
-        const printers  = getWindowsPrinters();
+        const hidden    = JSON.parse(db.prepare("SELECT value FROM meta WHERE key='hidden_printers'").get()?.value || '[]');
+        const printers  = getWindowsPrinters().filter(p => !hidden.includes(p.name));
         const notifications = db.prepare('SELECT * FROM notifications ORDER BY id DESC').all();
         const vatRow    = db.prepare("SELECT value FROM meta WHERE key='vat_rate'").get();
         const VAT_RATE  = parseInt(vatRow?.value || '18');
@@ -538,18 +559,21 @@ function startServer(preferredPort) {
         const g = (k, d='') => db.prepare("SELECT value FROM meta WHERE key=?").get(k)?.value ?? d;
         const hasSecret = !!g('ita_client_secret');
         res.json({
-          vat_rate:         parseInt(g('vat_rate','18')),
-          business_name:    g('business_name', "מג'יק פרינט"),
-          business_owner:   g('business_owner', 'אלי אליאס'),
-          business_vat:     g('business_vat'),
-          business_phone:   g('business_phone'),
-          business_email:   g('business_email'),
-          business_address: g('business_address'),
-          ita_client_id:    g('ita_client_id'),
+          vat_rate:          parseInt(g('vat_rate','18')),
+          business_name:     g('business_name', "מג'יק פרינט"),
+          business_owner:    g('business_owner', 'אלי אליאס'),
+          business_vat:      g('business_vat'),
+          business_phone:    g('business_phone'),
+          business_email:    g('business_email'),
+          business_address:  g('business_address'),
+          accountant_email:  g('accountant_email'),
+          ita_client_id:     g('ita_client_id'),
           ita_client_secret: hasSecret ? '***' : '',
-          ita_vat_number:   g('ita_vat_number'),
-          ita_env:          g('ita_env','sandbox'),
-          ita_configured:   !!(g('ita_client_id') && hasSecret && g('ita_vat_number')),
+          ita_vat_number:    g('ita_vat_number'),
+          ita_env:           g('ita_env','sandbox'),
+          ita_configured:    !!(g('ita_client_id') && hasSecret && g('ita_vat_number')),
+          hidden_printers:   JSON.parse(g('hidden_printers','[]')),
+          auto_update_check: g('auto_update_check','true'),
         });
       } catch (err) {
         res.status(500).json({ error: err.message });
@@ -561,19 +585,23 @@ function startServer(preferredPort) {
       try {
         const set = (k, v) => { if (v != null && v !== '***') db.prepare("INSERT OR REPLACE INTO meta (key,value) VALUES (?,?)").run(k, String(v)); };
         const { vat_rate, business_name, business_owner, business_vat,
-                business_phone, business_email, business_address,
-                ita_client_id, ita_client_secret, ita_vat_number, ita_env } = req.body;
+                business_phone, business_email, business_address, accountant_email,
+                ita_client_id, ita_client_secret, ita_vat_number, ita_env,
+                hidden_printers, auto_update_check } = req.body;
         if (vat_rate != null) { const r = parseInt(vat_rate); if (!isNaN(r) && r>=1 && r<=99) set('vat_rate', r); }
-        set('business_name',    business_name);
-        set('business_owner',   business_owner);
-        set('business_vat',     business_vat);
-        set('business_phone',   business_phone);
-        set('business_email',   business_email);
-        set('business_address', business_address);
-        set('ita_client_id',    ita_client_id);
+        set('business_name',     business_name);
+        set('business_owner',    business_owner);
+        set('business_vat',      business_vat);
+        set('business_phone',    business_phone);
+        set('business_email',    business_email);
+        set('business_address',  business_address);
+        set('accountant_email',  accountant_email);
+        set('ita_client_id',     ita_client_id);
         set('ita_client_secret', ita_client_secret);
-        set('ita_vat_number',   ita_vat_number);
-        set('ita_env',          ita_env);
+        set('ita_vat_number',    ita_vat_number);
+        set('ita_env',           ita_env);
+        set('auto_update_check', auto_update_check);
+        if (hidden_printers != null) set('hidden_printers', JSON.stringify(hidden_printers));
         res.json({ success: true });
       } catch (err) {
         res.status(500).json({ error: err.message });
@@ -615,6 +643,137 @@ function startServer(preferredPort) {
         execSync(`explorer "${backDir}"`, { timeout: 4000, windowsHide: true });
         res.json({ ok: true });
       } catch { res.json({ ok: false }); }
+    });
+
+    // ── POST /api/backup/set-path ─────────────────────────────────────────────
+    app.post('/api/backup/set-path', (req, res) => {
+      try {
+        const { path: targetPath } = req.body;
+        if (!targetPath?.trim()) {
+          // Clear override — revert to default
+          db.prepare("DELETE FROM meta WHERE key='backup_path_override'").run();
+          return res.json({ ok: true, cleared: true });
+        }
+        fs.mkdirSync(targetPath.trim(), { recursive: true });
+        // Test write access
+        const testFile = path.join(targetPath.trim(), '.write_test');
+        fs.writeFileSync(testFile, 'ok');
+        fs.unlinkSync(testFile);
+        db.prepare("INSERT OR REPLACE INTO meta (key,value) VALUES ('backup_path_override',?)").run(targetPath.trim());
+        res.json({ ok: true });
+      } catch (err) {
+        res.status(400).json({ error: `נתיב לא נגיש: ${err.message}` });
+      }
+    });
+
+    // ── POST /api/backup/restore ──────────────────────────────────────────────
+    app.post('/api/backup/restore', async (req, res) => {
+      try {
+        let filePath = req.body?.filePath;
+        // In Electron: open file picker dialog
+        if (!filePath) {
+          try {
+            const { dialog } = require('electron');
+            const result = await dialog.showOpenDialog({
+              title: 'בחר קובץ גיבוי לשחזור',
+              filters: [{ name: 'SQLite DB', extensions: ['db'] }],
+              properties: ['openFile'],
+            });
+            if (result.canceled || !result.filePaths[0])
+              return res.json({ canceled: true });
+            filePath = result.filePaths[0];
+          } catch {
+            return res.status(400).json({ error: 'לא רץ בתוך Electron — ציין filePath בגוף הבקשה' });
+          }
+        }
+        if (!fs.existsSync(filePath))
+          return res.status(400).json({ error: 'קובץ לא נמצא' });
+
+        // Close DB, copy backup over current DB, re-init
+        const dbPath = getDBPath();
+        db.close();
+        db = null;
+        fs.copyFileSync(filePath, dbPath);
+        initDB();
+        res.json({ ok: true, restored: filePath });
+      } catch (err) {
+        res.status(500).json({ error: err.message });
+      }
+    });
+
+    // ── GET /api/printers/all — unfiltered list (for management UI) ───────────
+    app.get('/api/printers/all', (req, res) => {
+      try {
+        res.json(getWindowsPrinters());
+      } catch (err) {
+        res.status(500).json({ error: err.message });
+      }
+    });
+
+    // ── GET /api/network-info ─────────────────────────────────────────────────
+    app.get('/api/network-info', (req, res) => {
+      try {
+        const lanMode = db.prepare("SELECT value FROM meta WHERE key='lan_mode'").get()?.value === 'true';
+        res.json({ lanMode, localIPs: getLocalIPs(), port: _actualPort });
+      } catch (err) {
+        res.status(500).json({ error: err.message });
+      }
+    });
+
+    // ── POST /api/lan/enable ──────────────────────────────────────────────────
+    app.post('/api/lan/enable', (req, res) => {
+      try {
+        db.prepare("INSERT OR REPLACE INTO meta (key,value) VALUES ('lan_mode','true')").run();
+        // Try to open Windows Firewall — non-fatal
+        try {
+          execSync(
+            `netsh advfirewall firewall add rule name="MagicPrint LAN" dir=in action=allow protocol=TCP localport=${_actualPort}`,
+            { timeout: 5000, windowsHide: true }
+          );
+        } catch {}
+        res.json({ ok: true, needsRestart: true });
+      } catch (err) {
+        res.status(500).json({ error: err.message });
+      }
+    });
+
+    // ── POST /api/lan/disable ─────────────────────────────────────────────────
+    app.post('/api/lan/disable', (req, res) => {
+      try {
+        db.prepare("INSERT OR REPLACE INTO meta (key,value) VALUES ('lan_mode','false')").run();
+        try {
+          execSync(
+            'netsh advfirewall firewall delete rule name="MagicPrint LAN"',
+            { timeout: 5000, windowsHide: true }
+          );
+        } catch {}
+        res.json({ ok: true, needsRestart: true });
+      } catch (err) {
+        res.status(500).json({ error: err.message });
+      }
+    });
+
+    // ── GET /api/credit-deposits ──────────────────────────────────────────────
+    app.get('/api/credit-deposits', (req, res) => {
+      try {
+        res.json(db.prepare('SELECT * FROM credit_deposits ORDER BY month DESC').all());
+      } catch (err) {
+        res.status(500).json({ error: err.message });
+      }
+    });
+
+    // ── PUT /api/credit-deposits ──────────────────────────────────────────────
+    app.put('/api/credit-deposits', (req, res) => {
+      try {
+        const { month, deposited } = req.body;
+        if (!month || !/^\d{4}-\d{2}$/.test(month))
+          return res.status(400).json({ error: 'month must be YYYY-MM' });
+        db.prepare('INSERT OR REPLACE INTO credit_deposits (month, deposited) VALUES (?, ?)')
+          .run(month, parseFloat(deposited) || 0);
+        res.json({ ok: true });
+      } catch (err) {
+        res.status(500).json({ error: err.message });
+      }
     });
 
     // ── GET /api/update/check — compare with GitHub latest release ───────────
@@ -1126,10 +1285,11 @@ function startServer(preferredPort) {
     });
 
     const srv = http.createServer(app);
-    tryListen(srv, preferredPort)
+    tryListen(srv, preferredPort, bindHost)
       .then(port => {
+        _actualPort = port;
         console.log(`\nמג'יק פרינט · שרת פועל על http://localhost:${port}\n`);
-        resolve({ server: srv, port });
+        resolve({ server: srv, port, lanMode, localIPs: getLocalIPs() });
       })
       .catch(reject);
   });

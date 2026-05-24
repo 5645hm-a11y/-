@@ -247,6 +247,7 @@ const App = () => {
       case 'customers': return <ScreenCustomers />;
       case 'invoices':  return <ScreenInvoices />;
       case 'receipts':  return <ScreenReceipts />;
+      case 'credit':    return <ScreenCredit />;
       case 'suppliers': return <ScreenSuppliers />;
       case 'inventory': return <ScreenInventory />;
       case 'printers':  return <ScreenPrinters />;

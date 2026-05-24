@@ -17,6 +17,8 @@ const path = require('path');
 let mainWindow;
 let tray;
 let actualPort = 3000;
+let lanMode    = false;
+let localIPs   = [];
 
 // ─── Single-instance lock ─────────────────────────────────────────────────────
 if (!app.requestSingleInstanceLock()) {
@@ -34,6 +36,15 @@ async function startExpressServer() {
   const { startServer } = require('./server');
   const result = await startServer(3000);
   actualPort = result.port;
+  lanMode    = result.lanMode  || false;
+  localIPs   = result.localIPs || [];
+}
+
+function updateTrayTooltip() {
+  if (!tray) return;
+  tray.setToolTip(lanMode && localIPs[0]
+    ? `מג'יק פרינט · LAN פעיל · ${localIPs[0]}:${actualPort}`
+    : "מג'יק פרינט · מערכת ניהול בית דפוס");
 }
 
 function createWindow() {
@@ -89,9 +100,9 @@ function createTray() {
     { label: 'יציאה', click: () => { app.isQuitting = true; app.quit(); } },
   ]);
 
-  tray.setToolTip("מג'יק פרינט · מערכת ניהול בית דפוס");
   tray.setContextMenu(menu);
   tray.on('double-click', () => { mainWindow.show(); mainWindow.focus(); });
+  updateTrayTooltip();
 }
 
 app.whenReady().then(async () => {

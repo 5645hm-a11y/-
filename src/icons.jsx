@@ -75,6 +75,7 @@ const Icon = ({ name, size = 18, ...rest }) => {
     case 'menu': return <svg {...props}><path d="M3 6h18M3 12h18M3 18h18"/></svg>;
     case 'fire': return <svg {...props}><path d="M12 3c2 4 6 5 6 11a6 6 0 0 1-12 0c0-3 1.5-4 2.5-5.5C9 12 11 11 12 3z"/></svg>;
     case 'info': return <svg {...props}><circle cx="12" cy="12" r="9"/><path d="M12 8v.01M12 11v5"/></svg>;
+    case 'minus': return <svg {...props}><path d="M5 12h14"/></svg>;
     default: return <svg {...props}><circle cx="12" cy="12" r="9"/></svg>;
   }
 };

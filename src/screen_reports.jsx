@@ -1,5 +1,90 @@
 // Reports & profitability — real data from DB
 
+async function exportMonthlyReport(data) {
+  const { monthRev, monthInvs, colRate, paidInvs, totalInvs, avgOrder, top5, methodData, fmt, monthLabel, VAT_RATE } = data;
+
+  const el = document.createElement('div');
+  el.style.cssText = 'direction:rtl;font-family:Arial,sans-serif;padding:32px;color:#181C1B;background:#fff;max-width:800px;margin:0 auto';
+  el.innerHTML = `
+    <div style="display:flex;align-items:center;gap:18px;margin-bottom:28px;border-bottom:2px solid #1FA89B;padding-bottom:18px">
+      <img src="assets/logo.jpeg" crossorigin="anonymous" style="height:64px;border-radius:10px" />
+      <div>
+        <div style="font-size:22px;font-weight:800">מג'יק פרינט — דוח חודשי</div>
+        <div style="font-size:14px;color:#6E7470;margin-top:4px">${monthLabel} · שיעור מע"מ ${VAT_RATE}%</div>
+      </div>
+    </div>
+    <div style="display:grid;grid-template-columns:1fr 1fr 1fr 1fr;gap:14px;margin-bottom:28px">
+      ${[
+        { label: 'הכנסות החודש', val: `₪${fmt(monthRev)}` },
+        { label: 'שיעור גבייה',  val: `${colRate}%` },
+        { label: 'חשבוניות',    val: `${paidInvs}/${totalInvs} שולמו` },
+        { label: 'ממוצע הזמנה', val: `₪${fmt(avgOrder)}` },
+      ].map(k => `
+        <div style="background:#F4F2EC;border-radius:10px;padding:14px;text-align:center">
+          <div style="font-size:11px;color:#6E7470;margin-bottom:6px">${k.label}</div>
+          <div style="font-size:18px;font-weight:700">${k.val}</div>
+        </div>
+      `).join('')}
+    </div>
+    ${top5.length > 0 ? `
+      <div style="margin-bottom:24px">
+        <div style="font-size:14px;font-weight:700;margin-bottom:10px;color:#1FA89B">5 לקוחות מובילים</div>
+        <table style="width:100%;border-collapse:collapse;font-size:13px">
+          <thead><tr style="background:#F4F2EC">
+            <th style="padding:8px;text-align:right">#</th>
+            <th style="padding:8px;text-align:right">לקוח</th>
+            <th style="padding:8px;text-align:left">הזמנות</th>
+            <th style="padding:8px;text-align:left">סה"כ</th>
+          </tr></thead>
+          <tbody>${top5.map((c, i) => `
+            <tr style="border-top:1px solid #eee">
+              <td style="padding:8px">${i + 1}</td>
+              <td style="padding:8px;font-weight:600">${c.name}</td>
+              <td style="padding:8px;text-align:left">${c.orders_count || 0}</td>
+              <td style="padding:8px;text-align:left;font-weight:700">₪${fmt(c.lifetime || 0)}</td>
+            </tr>
+          `).join('')}</tbody>
+        </table>
+      </div>
+    ` : ''}
+    ${methodData.length > 0 ? `
+      <div>
+        <div style="font-size:14px;font-weight:700;margin-bottom:10px;color:#1FA89B">פילוח שיטות תשלום</div>
+        <table style="width:100%;border-collapse:collapse;font-size:13px">
+          <thead><tr style="background:#F4F2EC">
+            <th style="padding:8px;text-align:right">שיטה</th>
+            <th style="padding:8px;text-align:left">אחוז</th>
+            <th style="padding:8px;text-align:left">סכום</th>
+          </tr></thead>
+          <tbody>${methodData.map(m => `
+            <tr style="border-top:1px solid #eee">
+              <td style="padding:8px;font-weight:600">${m.name}</td>
+              <td style="padding:8px;text-align:left">${m.pct}%</td>
+              <td style="padding:8px;text-align:left;font-weight:700">₪${fmt(m.sum)}</td>
+            </tr>
+          `).join('')}</tbody>
+        </table>
+      </div>
+    ` : ''}
+    <div style="margin-top:28px;padding-top:14px;border-top:1px solid #ddd;font-size:11px;color:#9CA098;text-align:center">
+      הופק אוטומטית על ידי מג'יק פרינט · ${new Date().toLocaleDateString('he-IL')}
+    </div>
+  `;
+
+  document.body.appendChild(el);
+  try {
+    await html2pdf().set({
+      margin: 0,
+      filename: `דוח-חודשי-${monthLabel}.pdf`,
+      image: { type: 'jpeg', quality: 0.95 },
+      html2canvas: { scale: 2, useCORS: true },
+      jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' },
+    }).from(el).save();
+  } finally {
+    document.body.removeChild(el);
+  }
+}
+
 const ScreenReports = () => {
   const { ORDERS, INVOICES, RECEIPTS, CUSTOMERS } = window.DATA;
 
@@ -82,9 +167,44 @@ const ScreenReports = () => {
 
   const fmt = n => Math.round(n || 0).toLocaleString();
 
+  const [exporting, setExporting] = React.useState(false);
+
+  const HE_MONTH_NAMES = ['', 'ינואר', 'פברואר', 'מרץ', 'אפריל', 'מאי', 'יוני', 'יולי', 'אוגוסט', 'ספטמבר', 'אוקטובר', 'נובמבר', 'דצמבר'];
+  const monthLabel = `${HE_MONTH_NAMES[CM]} ${CY}`;
+
+  const handleExport = async () => {
+    setExporting(true);
+    try {
+      await exportMonthlyReport({ monthRev, monthInvs, colRate, paidInvs, totalInvs: INVOICES.length, avgOrder, top5, methodData, fmt, monthLabel, VAT_RATE: window.DATA.VAT_RATE });
+    } catch (e) { console.error('PDF export failed:', e); }
+    setExporting(false);
+  };
+
+  const sendToAccountant = async () => {
+    try {
+      const s = await fetch('/api/settings').then(r => r.json());
+      const email = s.accountant_email || '';
+      const subject = encodeURIComponent(`דוח חודשי מג'יק פרינט — ${monthLabel}`);
+      const body = encodeURIComponent(
+        `שלום,\n\nמצורף דוח חודשי עבור ${monthLabel}:\n\nהכנסות: ₪${fmt(monthRev)}\nשיעור גבייה: ${colRate}%\nחשבוניות: ${paidInvs}/${INVOICES.length} שולמו\n\nבברכה,\nמג'יק פרינט`
+      );
+      window.open(`mailto:${email}?subject=${subject}&body=${body}`);
+    } catch {}
+  };
+
   // ── Render ───────────────────────────────────────────────────────────────────
   return (
     <div>
+
+      {/* ── Action buttons ── */}
+      <div style={{ display: 'flex', gap: 10, marginBottom: 18, justifyContent: 'flex-end' }}>
+        <button className="btn ghost" onClick={handleExport} disabled={exporting}>
+          <Icon name="download" size={14} /> {exporting ? 'מייצא...' : 'ייצא דוח PDF'}
+        </button>
+        <button className="btn teal" onClick={sendToAccountant}>
+          <Icon name="send" size={14} /> שלח לרואה חשבון
+        </button>
+      </div>
 
       {/* ── KPIs ── */}
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4,1fr)', gap: 14, marginBottom: 22 }}>

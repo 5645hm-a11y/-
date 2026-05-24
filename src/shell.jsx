@@ -7,9 +7,10 @@ const NAV_ITEMS = [
     { id: 'printers',   label: 'מכונות דפוס',          icon: 'printer',  liveDot: true },
   ]},
   { group: 'כספים', items: [
-    { id: 'invoices',   label: 'חשבוניות מס',          icon: 'invoice' },
-    { id: 'receipts',   label: 'קבלות',                icon: 'receipt' },
-    { id: 'reports',    label: 'דוחות ורווחיות',       icon: 'chart' },
+    { id: 'invoices',   label: 'חשבוניות מס',          icon: 'invoice'      },
+    { id: 'receipts',   label: 'קבלות',                icon: 'receipt'      },
+    { id: 'credit',     label: 'ריכוז אשראי',          icon: 'credit-card'  },
+    { id: 'reports',    label: 'דוחות ורווחיות',       icon: 'chart'        },
   ]},
   { group: 'בעלי עניין', items: [
     { id: 'customers',  label: 'לקוחות',               icon: 'users' },
@@ -71,6 +72,7 @@ const TITLES = {
   printers:  { h: 'מכונות דפוס', sub: 'מצב חי - תורי הדפסה ויעדים יומיים' },
   invoices:  { h: 'חשבוניות מס', sub: 'מסונכרן עם רשות המיסים בישראל' },
   receipts:  { h: 'קבלות', sub: 'תיעוד תשלומים מלקוחות' },
+  credit:    { h: 'ריכוז כרטיסי אשראי', sub: 'גביות, הפקדות ויתרות לסילוק' },
   reports:   { h: 'דוחות ורווחיות', sub: 'ניתוח ביצועי העסק' },
   customers: { h: 'לקוחות', sub: 'ספר לקוחות וכרטיסיות' },
   suppliers: { h: 'ספקים', sub: 'יתרות ותנאי תשלום מול ספקים' },

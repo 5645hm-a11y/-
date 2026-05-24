@@ -200,12 +200,119 @@ const DetailStat = ({ label, value }) => (
   </div>
 );
 
+// ── Manage Printers Modal ─────────────────────────────────────────────────────
+const ManagePrintersModal = ({ onClose }) => {
+  const [allPrinters, setAllPrinters] = React.useState([]);
+  const [hiddenList,  setHiddenList]  = React.useState([]);
+  const [loading,     setLoading]     = React.useState(true);
+  const [saving,      setSaving]      = React.useState(false);
+  const [saved,       setSaved]       = React.useState(false);
+
+  React.useEffect(() => {
+    Promise.all([
+      fetch('/api/printers/all').then(r => r.json()),
+      fetch('/api/settings').then(r => r.json()),
+    ]).then(([prns, settings]) => {
+      setAllPrinters(prns || []);
+      setHiddenList(settings.hidden_printers || []);
+      setLoading(false);
+    }).catch(() => setLoading(false));
+  }, []);
+
+  const toggleHidden = (name) => {
+    setHiddenList(prev =>
+      prev.includes(name) ? prev.filter(n => n !== name) : [...prev, name]
+    );
+  };
+
+  const save = async () => {
+    setSaving(true);
+    try {
+      await fetch('/api/settings', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ hidden_printers: hiddenList }),
+      });
+      await window.refreshData();
+      setSaved(true);
+      setTimeout(onClose, 800);
+    } catch {}
+    setSaving(false);
+  };
+
+  return (
+    <div className="modal-backdrop" onClick={onClose}>
+      <div className="modal" style={{ maxWidth: 560 }} onClick={e => e.stopPropagation()}>
+        <div className="modal__head">
+          <div style={{ width: 40, height: 40, background: 'var(--teal-soft)', borderRadius: 10, display: 'grid', placeItems: 'center', color: 'var(--teal)' }}>
+            <Icon name="cog" size={18} />
+          </div>
+          <div>
+            <h2>ניהול מדפסות</h2>
+            <div className="sub">הסתר מדפסות וירטואליות או לא רלוונטיות</div>
+          </div>
+          <button className="icon-btn" style={{ marginInlineStart: 'auto' }} onClick={onClose}>
+            <Icon name="x" size={16} />
+          </button>
+        </div>
+        <div className="modal__body">
+          {loading ? (
+            <div style={{ textAlign: 'center', padding: 40, color: 'var(--text-muted)' }}>טוען מדפסות...</div>
+          ) : allPrinters.length === 0 ? (
+            <div style={{ textAlign: 'center', padding: 40, color: 'var(--text-muted)' }}>לא נמצאו מדפסות</div>
+          ) : (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+              <div style={{ fontSize: 12, color: 'var(--text-muted)', marginBottom: 4 }}>
+                מדפסות מסומנות יוצגו במסך. בטל סימון להסתרה.
+              </div>
+              {allPrinters.map(p => {
+                const visible = !hiddenList.includes(p.name);
+                return (
+                  <label key={p.name} style={{
+                    display: 'flex', alignItems: 'center', gap: 12,
+                    padding: '10px 14px', borderRadius: 10,
+                    background: visible ? 'var(--teal-soft)' : 'var(--bg-deep)',
+                    cursor: 'pointer', transition: 'background .15s',
+                    border: `1px solid ${visible ? 'var(--teal)' : 'var(--border)'}`,
+                  }}>
+                    <input type="checkbox" checked={visible}
+                      onChange={() => toggleHidden(p.name)}
+                      style={{ width: 16, height: 16, cursor: 'pointer', accentColor: 'var(--teal)' }} />
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                      <div style={{ fontWeight: 600, fontSize: 14, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                        {p.name}
+                        {p.isVirtual && <span style={{ fontSize: 10, marginRight: 6, background: '#6B7280', color: '#fff', borderRadius: 4, padding: '1px 6px', fontWeight: 700 }}>וירטואלית</span>}
+                        {p.isDefault && <span style={{ fontSize: 10, marginRight: 6, background: 'var(--teal)', color: '#fff', borderRadius: 4, padding: '1px 6px', fontWeight: 700 }}>ברירת מחדל</span>}
+                      </div>
+                      <div style={{ fontSize: 12, color: 'var(--text-muted)' }}>{p.model}</div>
+                    </div>
+                    <span style={{ fontSize: 12, color: visible ? 'var(--teal-3)' : 'var(--text-muted)' }}>
+                      {visible ? 'מוצגת' : 'מוסתרת'}
+                    </span>
+                  </label>
+                );
+              })}
+            </div>
+          )}
+        </div>
+        <div className="modal__foot">
+          <button className="btn ghost" onClick={onClose}>ביטול</button>
+          <button className="btn teal" onClick={save} disabled={saving || loading} style={{ marginInlineStart: 'auto' }}>
+            {saved ? '✓ נשמר' : saving ? '...' : 'שמור'}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+};
+
 // ── Main screen ───────────────────────────────────────────────────────────────
 const ScreenPrinters = () => {
-  const [printers, setPrinters] = React.useState(window.DATA.PRINTERS || []);
-  const [selected, setSelected] = React.useState(null);
+  const [printers,  setPrinters]  = React.useState(window.DATA.PRINTERS || []);
+  const [selected,  setSelected]  = React.useState(null);
+  const [managing,  setManaging]  = React.useState(false);
   const [lastUpdate, setLastUpdate] = React.useState(new Date());
-  const [scanning, setScanning] = React.useState(false);
+  const [scanning,  setScanning]  = React.useState(false);
 
   const runScan = React.useCallback(() => {
     setScanning(true);
@@ -250,6 +357,12 @@ const ScreenPrinters = () => {
         >
           {scanning ? 'סורק...' : 'סרוק מחדש'}
         </button>
+        <button
+          onClick={() => setManaging(true)}
+          style={{ position: 'relative', zIndex: 1, padding: '8px 16px', borderRadius: 9, border: '1.5px solid rgba(255,255,255,.4)', background: 'rgba(255,255,255,.15)', color: '#fff', fontSize: 12.5, fontWeight: 600, cursor: 'pointer' }}
+        >
+          <Icon name="cog" size={13} /> נהל מדפסות
+        </button>
         <div style={{ marginInlineStart: 'auto', display: 'flex', gap: 24, position: 'relative', zIndex: 1 }}>
           <BannerStat label="סה״כ מדפסות" value={printers.length} />
           <BannerStat label="תקלות"        value={errors}  highlight={errors > 0} />
@@ -272,6 +385,10 @@ const ScreenPrinters = () => {
 
       {selected && (
         <PrinterDetailModal printer={selected} onClose={() => setSelected(null)} />
+      )}
+
+      {managing && (
+        <ManagePrintersModal onClose={() => { setManaging(false); runScan(); }} />
       )}
     </div>
   );
