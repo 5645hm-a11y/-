@@ -209,21 +209,35 @@ const ScreenCredit = () => {
                               <div style={{ fontSize: 12, fontWeight: 600, color: 'var(--text-muted)', marginBottom: 8 }}>
                                 קבלות אשראי — {heMonth(month)}
                               </div>
-                              <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
-                                {monthReceipts.map(r => (
-                                  <div key={r.id} style={{
-                                    display: 'flex', gap: 12, padding: '7px 12px',
-                                    background: 'var(--bg-card)', borderRadius: 8, fontSize: 13,
-                                    alignItems: 'center',
-                                  }}>
-                                    <span className="mono" style={{ color: 'var(--text-muted)', fontSize: 11, minWidth: 80 }}>{r.id}</span>
-                                    <span style={{ flex: 1, fontWeight: 500 }}>{r.customer}</span>
-                                    <span style={{ color: 'var(--text-muted)', fontSize: 12 }}>{r.date}</span>
-                                    {r.card && <span style={{ fontSize: 11, background: 'var(--teal-soft)', color: 'var(--teal-3)', padding: '2px 8px', borderRadius: 4 }}>{r.card}</span>}
-                                    <span className="mono" style={{ fontWeight: 700 }}>₪{fmt(r.amount)}</span>
-                                  </div>
-                                ))}
-                              </div>
+                              <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
+                                <thead>
+                                  <tr style={{ borderBottom: '1px solid var(--border)' }}>
+                                    {['שם לקוח', 'מספר שובר', 'סוג כרטיס', 'תאריך', 'סכום'].map(h => (
+                                      <th key={h} style={{ padding: '6px 10px', textAlign: 'right', fontWeight: 600, fontSize: 11, color: 'var(--text-muted)' }}>{h}</th>
+                                    ))}
+                                  </tr>
+                                </thead>
+                                <tbody>
+                                  {monthReceipts.map(r => (
+                                    <tr key={r.id} style={{ borderBottom: '1px solid var(--border)' }}>
+                                      <td style={{ padding: '8px 10px', fontWeight: 500 }}>{r.customer}</td>
+                                      <td style={{ padding: '8px 10px' }}>
+                                        <span className="mono" style={{ fontSize: 12, color: 'var(--text-muted)' }}>{r.id}</span>
+                                        {r.card && <span style={{ marginRight: 6, fontSize: 11, color: 'var(--ink-3)' }}>···{r.card}</span>}
+                                      </td>
+                                      <td style={{ padding: '8px 10px' }}>
+                                        {r.card_type
+                                          ? <span style={{ fontSize: 11, background: 'var(--teal-soft)', color: 'var(--teal-3)', padding: '2px 8px', borderRadius: 4 }}>{r.card_type}</span>
+                                          : <span style={{ color: 'var(--text-muted)' }}>—</span>}
+                                      </td>
+                                      <td style={{ padding: '8px 10px', color: 'var(--text-muted)', fontSize: 12 }}>{r.date}</td>
+                                      <td style={{ padding: '8px 10px', textAlign: 'left' }}>
+                                        <span className="mono" style={{ fontWeight: 700 }}>₪{fmt(r.amount)}</span>
+                                      </td>
+                                    </tr>
+                                  ))}
+                                </tbody>
+                              </table>
                             </div>
                           </td>
                         </tr>

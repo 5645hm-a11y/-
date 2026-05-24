@@ -27,68 +27,10 @@ function W2(text, maxLen = 60) {
   return lines.join('<br/>');
 }
 
-// ── Download receipt PDF ──────────────────────────────────────────────────────
-async function downloadReceiptPDF(receipt) {
-  let bizVat = '';
-  try {
-    const s = await fetch('/api/settings').then(r => r.json());
-    bizVat = s.business_vat || '';
-  } catch {}
-
-  const sp = (s) => String(s || '').replace(/ /g, '&nbsp;');
-
-  const overlay = document.createElement('div');
-  overlay.style.cssText = 'position:fixed;inset:0;background:rgba(255,255,255,0.97);z-index:99999;display:flex;align-items:center;justify-content:center;font-family:Arial,sans-serif;font-size:18px;color:#333';
-  overlay.textContent = 'מכין קובץ PDF...';
-  document.body.appendChild(overlay);
-
-  const el = document.createElement('div');
-  el.style.cssText = 'font-family:Arial,sans-serif;direction:rtl;padding:44px;color:#111;max-width:680px;background:#fff;word-spacing:2px;letter-spacing:0.01px';
-  el.innerHTML = `
-    <div style="text-align:center;margin-bottom:28px;padding-bottom:22px;border-bottom:2px solid #1FA89B">
-      <img src="assets/logo.jpeg" style="height:90px;object-fit:contain;border-radius:12px" crossorigin="anonymous" />
-    </div>
-
-    <div style="text-align:center;margin-bottom:24px">
-      <div style="font-size:28px;font-weight:700;color:#181C1B;margin-bottom:6px">קבלה</div>
-      <div style="font-size:14px;color:#555">
-        מספר:&nbsp;<b>${sp(receipt.id)}</b>&nbsp;&nbsp;·&nbsp;&nbsp;תאריך:&nbsp;${sp(receipt.date)}
-      </div>
-      ${bizVat ? `<div style="font-size:12px;color:#888;margin-top:4px">ח.פ.&nbsp;/&nbsp;ע.מ.:&nbsp;${sp(bizVat)}</div>` : ''}
-    </div>
-
-    <div style="margin-bottom:18px;font-size:14px;padding:12px 16px;background:#f4f2ec;border-radius:8px">
-      <b>לכבוד:</b>&nbsp;${sp(receipt.customer)}
-    </div>
-
-    <hr style="border:none;border-top:1px solid #ddd;margin:0 0 18px"/>
-
-    <div style="background:#f8f8f6;border-radius:8px;padding:16px;margin-bottom:18px;font-size:14px;line-height:1.9">
-      <div><b>אופן&nbsp;תשלום:</b>&nbsp;${sp(receipt.method)}${receipt.card ? `&nbsp;·&nbsp;כרטיס&nbsp;···${sp(receipt.card)}` : ''}</div>
-      ${receipt.invoice ? `<div><b>לכיסוי&nbsp;חשבונית:</b>&nbsp;#${sp(receipt.invoice)}</div>` : ''}
-    </div>
-
-    <div style="background:#eaf7f6;border-radius:10px;padding:24px 20px;text-align:center;margin-bottom:20px">
-      <div style="font-size:13px;color:#2B7B74;margin-bottom:6px;letter-spacing:0.5px">סכום&nbsp;שהתקבל</div>
-      <div style="font-size:36px;font-weight:700;color:#1FA89B">&#8362;${parseFloat(receipt.amount).toLocaleString()}</div>
-    </div>
-
-    <div style="margin-top:36px;font-size:11px;color:#bbb;border-top:1px solid #eee;padding-top:10px;text-align:center">
-      ${sp(receipt.id)}&nbsp;·&nbsp;${sp(receipt.date)}
-    </div>
-  `;
-  document.body.appendChild(el);
-  try {
-    await html2pdf().set({
-      margin: 10,
-      filename: `${receipt.id}.pdf`,
-      html2canvas: { scale: 2, useCORS: true, logging: false },
-      jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' },
-    }).from(el).save();
-  } finally {
-    document.body.removeChild(el);
-    document.body.removeChild(overlay);
-  }
+// ── Open receipt document (new design) ───────────────────────────────────────
+function downloadReceiptPDF(receipt) {
+  const id = typeof receipt === 'string' ? receipt : receipt.id;
+  window.open(`documents.html?type=receipt&id=${encodeURIComponent(id)}`, '_blank', 'width=960,height=1100,menubar=no,toolbar=no');
 }
 window.downloadReceiptPDF = downloadReceiptPDF;
 
@@ -97,7 +39,7 @@ const NewReceiptModal = ({ open, onClose, onSubmit, busy }) => {
   const { INVOICES } = window.DATA;
   const openInvoices = INVOICES.filter(inv => inv.status !== 'paid');
 
-  const initForm = { invoiceId: '', customer: '', method: 'אשראי', amount: '', card: '' };
+  const initForm = { invoiceId: '', customer: '', method: 'אשראי', amount: '', card: '', cardType: '' };
   const [form, setForm]         = React.useState(initForm);
   const [selectedInv, setSelInv] = React.useState(null);
 
@@ -168,11 +110,22 @@ const NewReceiptModal = ({ open, onClose, onSubmit, busy }) => {
           </div>
 
           {form.method === 'אשראי' && (
-            <div>
-              <label className="field-label">4 ספרות אחרונות של הכרטיס</label>
-              <input className="input" maxLength={4} value={form.card}
-                onChange={e => set('card', e.target.value.replace(/\D/g, ''))}
-                placeholder="1234" style={{ maxWidth: 120 }} />
+            <div style={{ display: 'flex', gap: 12 }}>
+              <div style={{ flex: 1 }}>
+                <label className="field-label">סוג כרטיס</label>
+                <select className="select" value={form.cardType} onChange={e => set('cardType', e.target.value)}>
+                  <option value="">— בחר —</option>
+                  {['ויזה', 'מאסטרקארד', 'ישראכרט', 'אמריקן אקספרס', 'דיינרס', 'מסטרו'].map(t => (
+                    <option key={t} value={t}>{t}</option>
+                  ))}
+                </select>
+              </div>
+              <div>
+                <label className="field-label">4 ספרות אחרונות</label>
+                <input className="input" maxLength={4} value={form.card}
+                  onChange={e => set('card', e.target.value.replace(/\D/g, ''))}
+                  placeholder="1234" style={{ width: 90 }} />
+              </div>
             </div>
           )}
 
@@ -324,7 +277,8 @@ const ScreenReceipts = () => {
           amount:   parseFloat(form.amount) || 0,
           method:   form.method,
           invoice:  form.invoiceId || '',
-          card:     form.card || '',
+          card:      form.card || '',
+          card_type: form.cardType || '',
         }),
       });
       const j = await res.json();

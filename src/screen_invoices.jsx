@@ -374,87 +374,9 @@ const InvoiceDetailModal = ({ inv, onClose, onRefresh }) => {
   );
 };
 
-// ── PDF generation ────────────────────────────────────────────────────────────
-async function downloadInvoicePDF(id, invData) {
-  const inv = invData || (window.DATA.INVOICES || []).find(i => i.id === id) || {};
-  const settings = await fetch('/api/settings').then(r => r.json()).catch(() => ({}));
-  const bizVat   = settings.business_vat || '';
-  const VAT_RATE = window.DATA.VAT_RATE || 18;
-
-  // Replace spaces with &nbsp; to prevent word merging in html2canvas
-  const sp = s => String(s || '').replace(/ /g, '&nbsp;');
-  const fmt = n => (+n || 0).toLocaleString('he-IL', { minimumFractionDigits: 2 });
-
-  const overlay = document.createElement('div');
-  overlay.style.cssText = 'position:fixed;top:0;left:0;width:100%;height:100%;z-index:99999;background:#fff;overflow:hidden';
-  document.body.appendChild(overlay);
-
-  const el = document.createElement('div');
-  el.style.cssText = 'width:750px;font-family:Arial,sans-serif;direction:rtl;padding:44px 48px;box-sizing:border-box;color:#111;word-spacing:2px';
-  overlay.appendChild(el);
-
-  el.innerHTML = `
-    <!-- Header: logo centered, no business name text near it -->
-    <div style="text-align:center;margin-bottom:26px;padding-bottom:22px;border-bottom:2px solid #1FA89B">
-      <img src="assets/logo.jpeg" style="height:90px;object-fit:contain;border-radius:12px" crossorigin="anonymous" />
-    </div>
-
-    <!-- Invoice type + details -->
-    <div style="margin-bottom:22px">
-      <div style="font-size:26px;font-weight:900;color:#0E665E;margin-bottom:8px">${sp(inv.type || 'חשבונית&nbsp;מס')}</div>
-      <div style="font-size:13px;color:#555">מספר&nbsp;מסמך:&nbsp;<b>${sp(id)}</b></div>
-      <div style="font-size:13px;color:#555">תאריך:&nbsp;${sp(inv.date || new Date().toLocaleDateString('he-IL'))}</div>
-      ${bizVat ? `<div style="font-size:12px;color:#888">ע.מ.:&nbsp;${sp(bizVat)}</div>` : ''}
-      ${inv.allocation ? `<div style="font-size:12px;color:#0E665E;margin-top:6px;font-weight:700">מספר&nbsp;הקצאה:&nbsp;${sp(inv.allocation)}</div>` : ''}
-    </div>
-
-    <hr style="border:1px solid #ddd;margin:0 0 20px"/>
-
-    <div style="margin-bottom:20px">
-      <div style="font-size:12px;color:#888;margin-bottom:4px">לכבוד:</div>
-      <div style="font-size:16px;font-weight:700">${sp(inv.customer || '')}</div>
-    </div>
-
-    <!-- Service table -->
-    <table style="width:100%;border-collapse:collapse;font-size:14px;margin-bottom:24px">
-      <tr style="background:#f5f5f3">
-        <td style="padding:10px 14px;font-weight:700">תיאור&nbsp;שירות</td>
-        <td style="padding:10px 14px;text-align:left;font-weight:700">סכום</td>
-      </tr>
-      <tr>
-        <td style="padding:10px 14px;border-bottom:1px solid #eee">${sp(inv.desc || inv.type || 'שירותי&nbsp;הדפסה')}</td>
-        <td style="padding:10px 14px;border-bottom:1px solid #eee;text-align:left">&#8362;${fmt(inv.amount)}</td>
-      </tr>
-    </table>
-
-    <!-- Totals table -->
-    <table style="width:100%;border-collapse:collapse;font-size:14px;margin-bottom:32px">
-      <tr>
-        <td style="padding:8px 14px;color:#555">מע"מ&nbsp;${VAT_RATE}%:</td>
-        <td style="padding:8px 14px;text-align:left">&#8362;${fmt(inv.vat)}</td>
-      </tr>
-      <tr style="font-weight:800;font-size:17px;background:#EAF7F6">
-        <td style="padding:12px 14px">סה"כ&nbsp;לתשלום:</td>
-        <td style="padding:12px 14px;text-align:left">&#8362;${fmt(inv.total)}</td>
-      </tr>
-    </table>
-
-    ${inv.allocation ? `<div style="padding:10px 14px;background:#EAF7F6;border-radius:8px;font-size:12px;color:#0E665E;margin-bottom:20px">מספר&nbsp;הקצאה&nbsp;רשות&nbsp;המיסים:&nbsp;<b>${sp(inv.allocation)}</b></div>` : ''}
-
-    <div style="font-size:11px;color:#aaa;border-top:1px solid #eee;padding-top:10px;text-align:center">
-      ${sp(id)}&nbsp;·&nbsp;${sp(inv.date || '')}
-    </div>
-  `;
-
-  try {
-    await html2pdf().set({
-      margin: 0, filename: `${id}.pdf`,
-      html2canvas: { scale: 2, useCORS: true, logging: false },
-      jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' },
-    }).from(el).save();
-  } finally {
-    document.body.removeChild(overlay);
-  }
+// ── Open invoice document (new design) ───────────────────────────────────────
+function downloadInvoicePDF(id) {
+  window.open(`documents.html?type=invoice&id=${encodeURIComponent(id)}`, '_blank', 'width=960,height=1100,menubar=no,toolbar=no');
 }
 
 // ── Main Screen ───────────────────────────────────────────────────────────────
@@ -553,7 +475,7 @@ const ScreenInvoices = () => {
                 onMouseEnter={e => e.currentTarget.style.background = 'var(--teal-softer)'}
                 onMouseLeave={e => e.currentTarget.style.background = ''}>
                 <td>
-                  <div className="name">{inv.type}</div>
+                  <div className="name">{/[א-ת]/.test(inv.type || '') ? inv.type : 'חשבונית מס'}</div>
                   <div className="text-xs mono muted">#{inv.id}</div>
                 </td>
                 <td>{inv.customer}</td>

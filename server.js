@@ -5,6 +5,7 @@ const path = require('path');
 const fs = require('fs');
 const http = require('http');
 const { execSync } = require('child_process');
+const crypto = require('crypto');
 const multer = require('multer');
 
 // ─── DB path: AppData in Electron, __dirname in standalone Node ───────────────
@@ -155,6 +156,10 @@ function initDB() {
 
   // Add attachments column if missing (safe migration)
   try { db.exec("ALTER TABLE orders ADD COLUMN attachments TEXT DEFAULT ''"); } catch {}
+  try { db.exec("ALTER TABLE invoices ADD COLUMN desc TEXT DEFAULT ''"); } catch {}
+  try { db.exec("ALTER TABLE invoices ADD COLUMN customerVat TEXT DEFAULT ''"); } catch {}
+  try { db.exec("ALTER TABLE receipts ADD COLUMN card_type TEXT DEFAULT ''"); } catch {}
+  try { db.exec("CREATE TABLE IF NOT EXISTS bit_config (key TEXT PRIMARY KEY, value TEXT)"); } catch {}
 
   // Mark current schema version (no data wipe — safe migrations only via ALTER TABLE)
   db.prepare("INSERT OR IGNORE INTO meta (key,value) VALUES ('version',?)").run(DB_VERSION);
@@ -164,6 +169,49 @@ function initDB() {
 
   // Seed default app password if not set
   db.prepare("INSERT OR IGNORE INTO meta (key,value) VALUES ('app_password','zxzx')").run();
+}
+
+// ─── Bit config helpers ────────────────────────────────────────────────────────
+const getBitCfg = (k) => db?.prepare('SELECT value FROM bit_config WHERE key=?').get(k)?.value ?? null;
+const setBitCfg = (k, v) => db?.prepare('INSERT OR REPLACE INTO bit_config VALUES (?,?)').run(k, String(v));
+
+function makeBitHeaders(method, path, body = '') {
+  const date = new Date().toUTCString();
+  const bodyStr = typeof body === 'string' ? body : JSON.stringify(body);
+  const digest = 'SHA-256=' + crypto.createHash('sha256').update(bodyStr).digest('base64');
+  const sigInput = `(request-target): ${method.toLowerCase()} ${path}\ndate: ${date}\ndigest: ${digest}`;
+  const privateKey = getBitCfg('private_key');
+  if (!privateKey) return { Date: date, Digest: digest };
+  try {
+    const sig = crypto.sign('sha256', Buffer.from(sigInput), { key: privateKey, format: 'pem' }).toString('base64');
+    return {
+      Date: date,
+      Digest: digest,
+      Signature: `keyId="${getBitCfg('client_id')}",algorithm="rsa-sha256",headers="(request-target) date digest",signature="${sig}"`,
+    };
+  } catch { return { Date: date, Digest: digest }; }
+}
+
+async function pollBitTransactions() {
+  const token = getBitCfg('access_token');
+  const accountId = getBitCfg('account_id');
+  if (!token || !accountId) return;
+  try {
+    const path = `/api/v1/accounts/${accountId}/transactions`;
+    const data = await fetch(`https://open-banking.bitpay.co.il${path}`, {
+      headers: { Authorization: `Bearer ${token}`, ...makeBitHeaders('GET', path) },
+    }).then(r => r.json());
+    const lastId = getBitCfg('bit_last_tx_id') || '';
+    const newTxns = (data.transactions || []).filter(tx =>
+      tx.creditDebitIndicator === 'CRDT' && tx.transactionId > lastId
+    );
+    for (const tx of newTxns) {
+      db.prepare('INSERT INTO notifications (icon, color, title, text, time) VALUES (?,?,?,?,?)')
+        .run('credit-card', 'teal', 'תשלום Bit התקבל',
+          `₪${tx.transactionAmount?.amount} התקבל בחשבון Bit`, 'עכשיו');
+    }
+    if (newTxns.length) setBitCfg('bit_last_tx_id', newTxns.at(-1).transactionId);
+  } catch (e) { console.error('[Bit] poll error:', e.message); }
 }
 
 // ─── Real Windows printers via PowerShell ─────────────────────────────────────
@@ -1160,9 +1208,10 @@ function startServer(preferredPort) {
         const amount  = parseFloat(d.amount) || 0;
         const vat     = parseFloat((amount * vatRate).toFixed(2));
         const total   = parseFloat((amount + vat).toFixed(2));
-        db.prepare(`INSERT INTO invoices (id, type, customer, date, amount, vat, total, status, tax, allocation, method)
-          VALUES (:id,:type,:customer,:date,:amount,:vat,:total,:status,:tax,:allocation,:method)`)
+        db.prepare(`INSERT INTO invoices (id, type, customer, customerVat, "desc", date, amount, vat, total, status, tax, allocation, method)
+          VALUES (:id,:type,:customer,:customerVat,:desc,:date,:amount,:vat,:total,:status,:tax,:allocation,:method)`)
           .run({ id, type: d.type||'חשבונית מס', customer: d.customer||'',
+                 customerVat: d.customerVat||'', desc: d.desc||'',
                  date: todayHE(), amount, vat, total, status: 'open', tax: 'pending', allocation: '', method: d.method||'—' });
 
         // Auto-request ITA allocation number
@@ -1200,11 +1249,11 @@ function startServer(preferredPort) {
       try {
         const d = req.body;
         const id = nextReceiptId();
-        db.prepare(`INSERT INTO receipts (id, customer, date, amount, method, invoice, card)
-          VALUES (:id, :customer, :date, :amount, :method, :invoice, :card)`)
+        db.prepare(`INSERT INTO receipts (id, customer, date, amount, method, invoice, card, card_type)
+          VALUES (:id, :customer, :date, :amount, :method, :invoice, :card, :card_type)`)
           .run({ id, customer: d.customer||'', date: todayHE(),
                  amount: parseFloat(d.amount)||0, method: d.method||'',
-                 invoice: d.invoice||'', card: d.card||'' });
+                 invoice: d.invoice||'', card: d.card||'', card_type: d.card_type||'' });
         if (d.invoice) {
           db.prepare('UPDATE invoices SET status=:status WHERE id=:id')
             .run({ status: 'paid', id: d.invoice });
@@ -1277,6 +1326,87 @@ function startServer(preferredPort) {
       }
     });
 
+    // ── Bit payment notifications ─────────────────────────────────────────────
+    app.get('/api/bit/status', (req, res) => {
+      try {
+        const connected = !!getBitCfg('access_token') && !!getBitCfg('account_id');
+        res.json({ connected, account_id: getBitCfg('account_id') || null });
+      } catch (err) { res.status(500).json({ error: err.message }); }
+    });
+
+    app.post('/api/bit/config', (req, res) => {
+      try {
+        const { client_id, client_secret } = req.body || {};
+        if (client_id != null) setBitCfg('client_id', client_id);
+        if (client_secret != null) setBitCfg('client_secret', client_secret);
+        res.json({ ok: true });
+      } catch (err) { res.status(500).json({ error: err.message }); }
+    });
+
+    app.get('/api/bit/auth', (req, res) => {
+      try {
+        const clientId = getBitCfg('client_id');
+        if (!clientId) return res.status(400).send('הגדר Client ID תחילה בהגדרות');
+        const verifier = crypto.randomBytes(32).toString('base64url');
+        const challenge = crypto.createHash('sha256').update(verifier).digest('base64url');
+        setBitCfg('pkce_verifier', verifier);
+        const url = new URL('https://www.bitpay.co.il/app/open-banking');
+        url.searchParams.set('response_type', 'code');
+        url.searchParams.set('client_id', clientId);
+        url.searchParams.set('redirect_uri', `http://localhost:${_actualPort}/api/bit/callback`);
+        url.searchParams.set('code_challenge', challenge);
+        url.searchParams.set('code_challenge_method', 'S256');
+        url.searchParams.set('scope', 'AIS');
+        res.redirect(url.toString());
+      } catch (err) { res.status(500).send(`שגיאה: ${err.message}`); }
+    });
+
+    app.get('/api/bit/callback', async (req, res) => {
+      try {
+        const { code, error } = req.query;
+        if (error || !code) return res.send(`<p style="font-family:sans-serif;direction:rtl">שגיאת אישור: ${error || 'לא התקבל קוד'}</p>`);
+        const body = new URLSearchParams({
+          grant_type: 'authorization_code',
+          code,
+          redirect_uri: `http://localhost:${_actualPort}/api/bit/callback`,
+          code_verifier: getBitCfg('pkce_verifier') || '',
+          client_id: getBitCfg('client_id') || '',
+          client_secret: getBitCfg('client_secret') || '',
+        }).toString();
+        const tokenRes = await fetch('https://open-banking.bitpay.co.il/api/v1/oauth/tokens', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+          body,
+        });
+        const tokens = await tokenRes.json();
+        if (!tokens.access_token) return res.send(`<p style="font-family:sans-serif;direction:rtl">שגיאה: ${JSON.stringify(tokens)}</p>`);
+        setBitCfg('access_token', tokens.access_token);
+        if (tokens.refresh_token) setBitCfg('refresh_token', tokens.refresh_token);
+        // Fetch account ID
+        const accountPath = '/api/v1/accounts';
+        const accountRes = await fetch(`https://open-banking.bitpay.co.il${accountPath}`, {
+          headers: { Authorization: `Bearer ${tokens.access_token}`, ...makeBitHeaders('GET', accountPath) },
+        });
+        const accountData = await accountRes.json();
+        const accountId = accountData.accounts?.[0]?.accountId || accountData.accounts?.[0]?.account_id;
+        if (accountId) setBitCfg('account_id', accountId);
+        res.send('<html dir="rtl"><body style="font-family:sans-serif;text-align:center;padding:40px"><h2>✓ חיבור Bit הושלם!</h2><p>ניתן לסגור חלון זה.</p><script>setTimeout(()=>window.close(),2000)</script></body></html>');
+      } catch (err) { res.status(500).send(`<p style="font-family:sans-serif;direction:rtl">שגיאה: ${err.message}</p>`); }
+    });
+
+    app.post('/api/bit/poll', async (req, res) => {
+      try { await pollBitTransactions(); res.json({ ok: true }); }
+      catch (err) { res.status(500).json({ error: err.message }); }
+    });
+
+    app.post('/api/bit/disconnect', (req, res) => {
+      try {
+        ['access_token', 'refresh_token', 'account_id', 'pkce_verifier', 'bit_last_tx_id']
+          .forEach(k => { try { db.prepare('DELETE FROM bit_config WHERE key=?').run(k); } catch {} });
+        res.json({ ok: true });
+      } catch (err) { res.status(500).json({ error: err.message }); }
+    });
+
     // ── SPA fallback ─────────────────────────────────────────────────────────
     app.get('*', (req, res) => {
       if (!req.path.startsWith('/api/') && !req.path.includes('.')) {
@@ -1292,6 +1422,8 @@ function startServer(preferredPort) {
         _actualPort = port;
         _actualHost = bindHost;
         console.log(`\nמג'יק פרינט · שרת פועל על http://localhost:${port}\n`);
+        setInterval(pollBitTransactions, 5 * 60 * 1000);
+        pollBitTransactions();
         resolve({ server: srv, port, lanMode, localIPs: getLocalIPs() });
       })
       .catch(reject);

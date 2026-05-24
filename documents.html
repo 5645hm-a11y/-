@@ -1,0 +1,677 @@
+<!doctype html>
+<html lang="he" dir="rtl">
+<head>
+<meta charset="utf-8">
+<title>מסמך · מג'יק פרינט</title>
+<link href="https://fonts.googleapis.com/css2?family=Heebo:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js" crossorigin="anonymous"></script>
+<style>
+:root {
+  --teal: #1FA89B; --teal-2: #14857A; --teal-3: #0E665E; --teal-4: #06322D;
+  --teal-soft: #DFF1EF; --teal-softer: #ECF7F5; --teal-edge: #B7E0DA;
+  --ink: #181C1B; --ink-2: #3D4441; --ink-3: #6E7470; --ink-4: #9CA098; --ink-5: #C1C5BE;
+  --paper: #FFFFFF; --paper-tint: #FBFCFB; --rule: #E2DED2; --rule-strong: #C9C3B3;
+  --warn: #D89B3A; --danger: #C25A5A; --success: #2F9466;
+  --shadow-strong: 0 4px 16px rgba(20,30,28,.10), 0 30px 80px rgba(20,30,28,.15);
+}
+* { box-sizing: border-box; }
+html, body { margin: 0; padding: 0; }
+body {
+  font-family: 'Heebo', system-ui, sans-serif;
+  background: #E8E5DC; color: var(--ink); font-size: 14px;
+  direction: rtl; -webkit-font-smoothing: antialiased;
+}
+.mono { font-family: 'JetBrains Mono', ui-monospace, monospace; }
+
+/* ── Toolbar ── */
+.toolbar {
+  position: sticky; top: 0; z-index: 50;
+  background: rgba(255,255,255,.95); backdrop-filter: saturate(140%) blur(8px);
+  border-bottom: 1px solid var(--rule); padding: 11px 22px;
+  display: flex; align-items: center; gap: 14px;
+}
+.toolbar__brand { display: flex; align-items: center; gap: 10px; font-weight: 700; font-size: 14.5px; }
+.toolbar__brand .mark {
+  width: 30px; height: 30px; border-radius: 7px;
+  background: var(--teal-4); color: #fff; display: grid; place-items: center;
+}
+.toolbar__brand .sub { font-weight: 400; font-size: 11.5px; color: var(--ink-3); margin-inline-start: 2px; }
+.toolbar__right { margin-inline-start: auto; display: flex; gap: 8px; }
+.tb-btn {
+  height: 32px; padding: 0 13px; border-radius: 8px; border: 1px solid var(--rule);
+  background: #fff; font: inherit; font-size: 12.5px; font-weight: 500;
+  display: inline-flex; align-items: center; gap: 6px; cursor: pointer; color: var(--ink-2);
+  transition: border-color .15s;
+}
+.tb-btn:hover { border-color: var(--rule-strong); }
+.tb-btn:disabled { opacity: .55; cursor: default; }
+.tb-btn.primary { background: var(--ink); color: #fff; border-color: var(--ink); }
+.tb-btn.primary:hover { background: #000; }
+.tb-btn svg { width: 14px; height: 14px; }
+
+/* ── Stage ── */
+.stage { padding: 36px 22px 80px; display: flex; justify-content: center; }
+.stage__inner { width: min(100%, 920px); }
+
+/* ── Sheet (A4) ── */
+.sheet {
+  width: 794px; min-height: 1123px; margin: 0 auto;
+  background: var(--paper); box-shadow: var(--shadow-strong);
+  border-radius: 4px; position: relative; overflow: hidden;
+  padding: 56px 60px 70px; display: flex; flex-direction: column;
+}
+.sheet > *:not(.copy-stamp) { position: relative; z-index: 1; }
+
+/* ── Copy stamp ── */
+.copy-stamp {
+  position: absolute; inset: 0; display: grid; place-items: center;
+  pointer-events: none; z-index: 0; overflow: hidden;
+}
+.copy-stamp .stamp {
+  font-size: 200px; font-weight: 800; color: var(--danger); opacity: .11;
+  transform: rotate(-22deg); letter-spacing: .04em;
+  border: 16px solid var(--danger); padding: 26px 80px 18px; border-radius: 26px;
+  font-family: 'Heebo', sans-serif; line-height: 1; user-select: none; white-space: nowrap;
+}
+
+/* ── Letterhead ── */
+.lh {
+  display: flex; align-items: flex-start; gap: 22px;
+  padding-bottom: 22px; border-bottom: 2px solid var(--teal-4); position: relative;
+}
+.lh .bsd { position: absolute; top: -8px; inset-inline-start: 0; font-size: 11px; font-weight: 600; color: var(--ink-3); letter-spacing: .05em; }
+.lh__brand { flex: 1; }
+.lh__logo { width: 100%; height: 95px; background: url('assets/logo-a.png') no-repeat center/contain; border-radius: 8px; }
+.lh__name { display: flex; flex-direction: column; gap: 1px; }
+.lh__name .he { font-size: 26px; font-weight: 700; color: var(--teal-4); letter-spacing: -.01em; line-height: 1.1; }
+.lh__name .en { font-size: 14px; font-weight: 600; color: var(--teal-2); letter-spacing: .02em; line-height: 1; direction: ltr; }
+.lh__name .tag { font-size: 10.5px; color: var(--ink-3); margin-top: 6px; letter-spacing: .01em; line-height: 1.45; }
+.lh__contact { text-align: end; font-size: 10.5px; color: var(--ink-2); line-height: 1.55; padding-top: 2px; min-width: 200px; }
+.lh__contact .row { display: flex; gap: 6px; justify-content: flex-end; align-items: center; }
+.lh__contact .row svg { width: 11px; height: 11px; color: var(--teal-2); flex-shrink: 0; }
+.lh__contact b { font-weight: 600; color: var(--ink); }
+.lh__contact .vat { display: inline-block; margin-top: 4px; font-size: 10px; color: var(--ink-3); border-top: 1px solid var(--rule); padding-top: 4px; }
+
+/* ── Title strip ── */
+.title-strip { display: flex; align-items: flex-end; justify-content: space-between; margin-top: 26px; padding-bottom: 14px; gap: 24px; }
+.title-strip h1 { margin: 0; font-size: 30px; font-weight: 700; color: var(--ink); letter-spacing: -.02em; line-height: 1.05; }
+.title-strip .subtype { font-size: 12px; color: var(--ink-3); text-transform: uppercase; letter-spacing: .14em; font-weight: 600; margin-bottom: 4px; }
+.docmeta { display: flex; gap: 22px; }
+.docmeta__item { text-align: end; }
+.docmeta__item .lbl { font-size: 10px; text-transform: uppercase; letter-spacing: .12em; color: var(--ink-4); font-weight: 600; }
+.docmeta__item .val { font-size: 15px; font-weight: 700; color: var(--ink); margin-top: 2px; }
+.docmeta__item .val.num { color: var(--danger); font-family: 'JetBrains Mono', monospace; font-size: 17px; }
+.docmeta__item .val.alloc { color: var(--teal-3); font-family: 'JetBrains Mono', monospace; font-size: 13px; }
+
+/* ── Parties ── */
+.parties { display: grid; grid-template-columns: 1.4fr 1fr; gap: 20px; margin-top: 8px; }
+.party { background: var(--paper-tint); border: 1px solid var(--rule); border-radius: 10px; padding: 14px 16px; }
+.party.muted { background: transparent; border-style: dashed; }
+.party__lbl { font-size: 10.5px; color: var(--ink-3); font-weight: 600; text-transform: uppercase; letter-spacing: .12em; margin-bottom: 6px; display: flex; align-items: center; gap: 6px; }
+.party__lbl svg { width: 12px; height: 12px; color: var(--teal-2); }
+.party__name { font-size: 16px; font-weight: 700; color: var(--ink); margin-bottom: 4px; letter-spacing: -.01em; }
+.party__lines { font-size: 12px; color: var(--ink-2); line-height: 1.6; }
+.party__lines .row { display: flex; gap: 6px; align-items: center; flex-wrap: wrap; }
+.party__lines .row + .row { margin-top: 1px; }
+.party__lines b { font-weight: 500; color: var(--ink); }
+
+/* ── Table ── */
+.lines { margin-top: 22px; border: 1px solid var(--rule); border-radius: 10px; overflow: hidden; }
+.lines table { width: 100%; border-collapse: collapse; font-size: 12.5px; }
+.lines thead th { background: var(--teal-4); color: #fff; font-weight: 600; font-size: 11.5px; text-align: start; padding: 11px 14px; letter-spacing: .02em; }
+.lines thead th.num { text-align: end; }
+.lines thead th:first-child { width: 36px; text-align: center; background: var(--teal-3); }
+.lines tbody td { padding: 12px 14px; border-bottom: 1px solid var(--rule); vertical-align: top; }
+.lines tbody td:first-child { text-align: center; background: var(--paper-tint); font-family: 'JetBrains Mono', monospace; font-size: 11.5px; color: var(--ink-3); font-weight: 500; width: 36px; }
+.lines tbody td.num { text-align: end; font-family: 'JetBrains Mono', monospace; font-variant-numeric: tabular-nums; }
+.lines tbody td .lname { font-weight: 600; color: var(--ink); margin-bottom: 3px; line-height: 1.35; }
+.lines tbody td .lspec { font-size: 11px; color: var(--ink-3); line-height: 1.5; }
+.lines tbody tr:last-child td { border-bottom: 0; }
+
+/* ── Bottom grid ── */
+.bottom-grid { display: grid; grid-template-columns: 1.1fr .9fr; gap: 22px; margin-top: 20px; }
+.notes-block .lbl { font-size: 10.5px; color: var(--ink-3); font-weight: 600; text-transform: uppercase; letter-spacing: .12em; margin-bottom: 6px; display: flex; align-items: center; gap: 6px; }
+.notes-block .lbl svg { width: 12px; height: 12px; color: var(--teal-2); }
+.notes-block .box { background: var(--paper-tint); border: 1px solid var(--rule); border-radius: 9px; padding: 11px 13px; font-size: 12px; color: var(--ink-2); line-height: 1.65; min-height: 70px; }
+.terms-pills { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 10px; }
+.pill { background: var(--teal-softer); color: var(--teal-3); font-size: 11px; padding: 4px 10px; border-radius: 999px; font-weight: 500; border: 1px solid var(--teal-edge); display: inline-flex; align-items: center; gap: 4px; }
+.pill svg { width: 10px; height: 10px; }
+
+/* ── Totals ── */
+.totals { background: var(--paper-tint); border: 1px solid var(--rule); border-radius: 10px; padding: 4px 16px 0; align-self: start; }
+.totals .row { display: flex; justify-content: space-between; align-items: center; padding: 9px 0; border-bottom: 1px dashed var(--rule); font-size: 12.5px; }
+.totals .row:last-of-type { border-bottom: 0; }
+.totals .row .l { color: var(--ink-2); font-weight: 500; }
+.totals .row .v { font-family: 'JetBrains Mono', monospace; font-variant-numeric: tabular-nums; color: var(--ink); }
+.totals .grand { margin-inline: -16px; margin-top: 4px; padding: 14px 16px; background: var(--teal-4); color: #fff; border-radius: 0 0 9px 9px; display: flex; justify-content: space-between; align-items: center; }
+.totals .grand .l { font-size: 12.5px; opacity: .85; font-weight: 500; letter-spacing: .02em; }
+.totals .grand .v { font-family: 'JetBrains Mono', monospace; font-variant-numeric: tabular-nums; font-size: 22px; font-weight: 700; }
+.totals .grand .v small { font-size: 13px; opacity: .75; font-weight: 500; margin-inline-start: 4px; }
+
+/* ── Footer ── */
+.foot { margin-top: auto; padding-top: 22px; }
+.foot .legal { font-size: 11px; color: var(--ink-3); line-height: 1.55; padding: 11px 14px; background: rgba(31,168,155,.04); border-inline-start: 3px solid var(--teal); border-radius: 0 8px 8px 0; margin-bottom: 18px; }
+.foot .legal b { color: var(--teal-3); font-weight: 600; }
+.signatures { display: grid; grid-template-columns: 1fr 1fr; gap: 30px; margin-top: 12px; }
+.sig { display: flex; flex-direction: column; gap: 4px; }
+.sig__line { height: 32px; border-bottom: 1.5px solid var(--ink); }
+.sig__lbl { font-size: 11px; color: var(--ink-3); font-weight: 500; }
+.sig__sub { font-size: 10px; color: var(--ink-4); margin-top: 1px; }
+.bottombar { margin-top: 22px; padding-top: 14px; border-top: 1px solid var(--rule); display: flex; justify-content: space-between; align-items: center; font-size: 10px; color: var(--ink-4); letter-spacing: .04em; }
+.bottombar .tagline { color: var(--teal-3); font-weight: 600; font-style: italic; font-size: 11px; }
+
+/* ── Spec grid (work order) ── */
+.spec-grid { margin-top: 20px; display: grid; gap: 0; border: 1px solid var(--rule); border-radius: 10px; overflow: hidden; }
+.spec-cell { padding: 12px 14px; border-inline-start: 1px solid var(--rule); border-top: 1px solid var(--rule); }
+.spec-cell:nth-child(-n+4) { border-top: 0; }
+.spec-cell:nth-child(4n+1) { border-inline-start: 0; }
+.spec-cell .lbl { font-size: 10px; color: var(--ink-3); font-weight: 600; text-transform: uppercase; letter-spacing: .1em; margin-bottom: 3px; }
+.spec-cell .val { font-size: 13px; font-weight: 600; color: var(--ink); }
+.spec-cell .val.mono { font-family: 'JetBrains Mono', monospace; }
+
+/* ── Receipt payment card ── */
+.payment-card { display: grid; grid-template-columns: 1fr 1fr; gap: 0; margin-top: 22px; border: 1px solid var(--rule); border-radius: 10px; overflow: hidden; }
+.payment-card__left { background: linear-gradient(135deg, var(--teal-3), var(--teal-4)); color: #fff; padding: 22px 24px; display: flex; flex-direction: column; justify-content: space-between; min-height: 180px; position: relative; overflow: hidden; }
+.payment-card__left::after { content: ''; position: absolute; bottom: -60px; left: -30px; width: 180px; height: 180px; border: 24px solid rgba(255,255,255,.07); border-radius: 50%; }
+.payment-card__lbl { font-size: 11px; opacity: .8; text-transform: uppercase; letter-spacing: .14em; font-weight: 600; }
+.payment-card__amount { font-family: 'JetBrains Mono', monospace; font-variant-numeric: tabular-nums; font-size: 36px; font-weight: 700; letter-spacing: -.02em; margin-top: 6px; line-height: 1; }
+.payment-card__amount small { font-size: 16px; opacity: .7; margin-inline-start: 4px; }
+.payment-card__right { padding: 18px 20px; }
+.pay-row { display: flex; justify-content: space-between; gap: 12px; padding: 8px 0; border-bottom: 1px dashed var(--rule); font-size: 12.5px; }
+.pay-row:last-child { border-bottom: 0; }
+.pay-row .l { color: var(--ink-3); }
+.pay-row .v { color: var(--ink); font-weight: 600; text-align: end; }
+.pay-row .v.mono { font-family: 'JetBrains Mono', monospace; font-weight: 500; }
+.method-chip { display: inline-flex; align-items: center; gap: 5px; padding: 3px 9px; background: var(--teal-softer); color: var(--teal-3); border-radius: 999px; font-size: 11px; font-weight: 600; border: 1px solid var(--teal-edge); }
+.method-chip svg { width: 11px; height: 11px; }
+
+/* ── Print ── */
+@media print {
+  @page { margin: 0; size: A4; }
+  body { background: #fff; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+  .toolbar { display: none; }
+  .stage { padding: 0; }
+  .sheet { box-shadow: none; border-radius: 0; margin: 0; width: 210mm; height: 297mm; overflow: hidden; }
+}
+</style>
+</head>
+<body>
+
+<div class="toolbar">
+  <div class="toolbar__brand">
+    <div class="mark">
+      <svg viewBox="0 0 40 40" width="20" height="20" aria-hidden="true">
+        <path d="M7 31 V14.5 a5.5 5.5 0 0 1 11 0 V31 M18 31 V14.5 a5.5 5.5 0 0 1 11 0 V31"
+              stroke="#fff" stroke-width="4" fill="none" stroke-linecap="round" stroke-linejoin="round"/>
+      </svg>
+    </div>
+    <div>
+      <span id="doc-title">מסמך</span>
+      <div class="sub" id="doc-subtitle">מג'יק פרינט</div>
+    </div>
+  </div>
+  <div class="toolbar__right">
+    <button class="tb-btn primary" onclick="window.print()">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="6 9 6 2 18 2 18 9"/><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"/><rect x="6" y="14" width="12" height="8"/></svg>
+      הדפס
+    </button>
+  </div>
+</div>
+
+<div class="stage">
+  <div class="stage__inner">
+    <div id="doc-root"><div style="text-align:center;padding:80px;color:#888;font-size:16px;">טוען מסמך...</div></div>
+  </div>
+</div>
+
+<script>
+const params  = new URLSearchParams(location.search);
+const docType = params.get('type') || 'invoice';
+const docId   = params.get('id')   || '';
+
+/* ── Helpers ── */
+function esc(s) {
+  return String(s || '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+}
+function fmt(n) {
+  return '₪ ' + (+n||0).toLocaleString('he-IL', {minimumFractionDigits:2, maximumFractionDigits:2});
+}
+
+/* ── Inline SVG icons ── */
+const S = {
+  loc:   '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"/><circle cx="12" cy="10" r="3"/></svg>',
+  phone: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72c.13.96.37 1.9.72 2.81a2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45c.91.35 1.85.59 2.81.72A2 2 0 0 1 22 16.92z"/></svg>',
+  email: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/><polyline points="22,6 12,13 2,6"/></svg>',
+  user:  '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>',
+  check: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="20 6 9 17 4 12"/></svg>',
+  info:  '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>',
+  file:  '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>',
+  cc:    '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="5" width="20" height="14" rx="2"/><line x1="2" y1="10" x2="22" y2="10"/></svg>',
+  mon:   '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="3" width="20" height="14" rx="2" ry="2"/><line x1="8" y1="21" x2="16" y2="21"/><line x1="12" y1="17" x2="12" y2="21"/></svg>',
+  cal:   '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>',
+  clk:   '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>',
+  edit:  '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>',
+};
+
+/* ── Shared letterhead ── */
+function lh(biz) {
+  return `
+  <div class="lh">
+    <span class="bsd">בס"ד</span>
+    <div class="lh__brand">
+      <div class="lh__logo"></div>
+    </div>
+    <div class="lh__contact">
+      ${biz.address ? `<div class="row"><b>${esc(biz.address)}</b>${S.loc}</div>` : ''}
+      ${biz.phone   ? `<div class="row"><span>${esc(biz.phone)}</span>${S.phone}</div>` : ''}
+      ${biz.email   ? `<div class="row"><span>${esc(biz.email)}</span>${S.email}</div>` : ''}
+      <div class="vat">עוסק מורשה · ${esc(biz.vat)}</div>
+    </div>
+  </div>`;
+}
+
+/* ── Shared bottom bar ── */
+function bottombar(label) {
+  const today = new Date().toLocaleDateString('he-IL');
+  return `
+  <div class="bottombar">
+    <span>${esc(label)} · הופק במערכת מג'יק פרינט · ${today}</span>
+    <span class="tagline">תודה שקניתם אצלנו</span>
+    <span>עמוד 1 / 1</span>
+  </div>`;
+}
+
+/* ── Invoice / Combo ── */
+function renderInvoice(inv, biz) {
+  const isCombo = (inv.type || '').includes('קבלה');
+  const isAlloc = inv.allocation && inv.allocation !== '' && inv.allocation !== '—';
+  const desc    = inv.desc || 'שירות הדפסה ועיצוב גרפי';
+  const vatLbl  = `מע"מ ${biz.vatRate}%`;
+
+  return `
+  <section class="sheet">
+    ${isAlloc || inv.status === 'paid' ? '<div class="copy-stamp"><span class="stamp">מקור</span></div>' : ''}
+    ${lh(biz)}
+
+    <div class="title-strip">
+      <div>
+        <div class="subtype">${isCombo ? 'TAX INVOICE / RECEIPT' : 'TAX INVOICE · רשות המיסים'}</div>
+        <h1>${esc(inv.type || 'חשבונית מס')}</h1>
+      </div>
+      <div class="docmeta">
+        <div class="docmeta__item">
+          <div class="lbl">תאריך</div>
+          <div class="val">${esc(inv.date)}</div>
+        </div>
+        ${isAlloc ? `
+        <div class="docmeta__item">
+          <div class="lbl">מס' הקצאה</div>
+          <div class="val alloc">${esc(inv.allocation)}</div>
+        </div>` : ''}
+        <div class="docmeta__item">
+          <div class="lbl">חשבונית מס'</div>
+          <div class="val num">№ ${esc(inv.id)}</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="parties">
+      <div class="party">
+        <div class="party__lbl">${S.user} לכבוד</div>
+        <div class="party__name">${esc(inv.customer)}</div>
+        ${inv.customerVat ? `<div class="party__lines"><div class="row">ח.פ <b class="mono">${esc(inv.customerVat)}</b></div></div>` : ''}
+      </div>
+      <div class="party${isCombo ? '' : ' muted'}">
+        <div class="party__lbl">${isCombo ? S.cc + ' סוג תשלום' : S.cal + ' פרטי החשבונית'}</div>
+        ${isCombo ? `
+        <div class="party__lines" style="line-height:2;">
+          <div class="row" style="justify-content:flex-start;">
+            <span class="method-chip">${S.cc} ${esc(inv.method || 'אשראי')}</span>
+          </div>
+          <div class="row"><b>סטטוס:</b><span style="color:var(--success);font-weight:600;">&#9679; שולם במלואו</span></div>
+        </div>` : `
+        <div class="party__lines" style="font-size:12px;line-height:1.85;">
+          <div class="row"><b>אופן תשלום:</b><span>${esc(inv.method || '—')}</span></div>
+        </div>`}
+      </div>
+    </div>
+
+    <div class="lines"><table>
+      <thead><tr>
+        <th>#</th><th>תיאור</th>
+        <th class="num">לפני מע"מ</th>
+        <th class="num">${vatLbl}</th>
+        <th class="num">סה"כ ₪</th>
+      </tr></thead>
+      <tbody><tr>
+        <td>01</td>
+        <td><div class="lname">${esc(desc)}</div></td>
+        <td class="num">${fmt(inv.amount)}</td>
+        <td class="num">${fmt(inv.vat)}</td>
+        <td class="num">${fmt(inv.total)}</td>
+      </tr></tbody>
+    </table></div>
+
+    <div class="bottom-grid">
+      <div class="notes-block">
+        <div class="lbl">${S.info} ${isCombo ? 'אישור תשלום' : 'פרטי תשלום'}</div>
+        <div class="box">
+          ${isCombo
+            ? `<span style="color:var(--success);">&#9679;</span> <b>שולם במלואו · ${esc(inv.date)}</b> — ${esc(inv.method || 'אשראי')}`
+            : `תנאי תשלום: שוטף +30<br/>תאריך הפקה: ${esc(inv.date)}`}
+        </div>
+        <div class="terms-pills">
+          ${isCombo
+            ? `<span class="pill" style="background:#DDEEE3;color:#1F633E;border-color:#A8D9BE;">${S.check} שולם במלואו</span>`
+            : `<span class="pill">${S.clk} שוטף +30</span><span class="pill">תשלום: ${esc(inv.method || '—')}</span>`}
+        </div>
+      </div>
+      <div class="totals">
+        <div class="row"><span class="l">סה"כ לפני מע"מ</span><span class="v">${fmt(inv.amount)}</span></div>
+        <div class="row"><span class="l">${vatLbl}</span><span class="v">${fmt(inv.vat)}</span></div>
+        <div class="grand">
+          <span class="l">${isCombo ? 'סה"כ ששולם' : 'סה"כ לתשלום'}</span>
+          <span class="v">${fmt(inv.total)}</span>
+        </div>
+      </div>
+    </div>
+
+    <div class="foot">
+      <div class="legal">
+        ${isCombo
+          ? `<b>קיבלנו מ-</b>${esc(inv.customer)} <b>סך של</b> ${fmt(inv.total)} באמצעות ${esc(inv.method || 'אשראי')}.${isAlloc ? ` מספר הקצאה רשות המיסים: <b class="mono">${esc(inv.allocation)}</b>.` : ''}`
+          : `<b>לקוח/ה יקר/ה</b> — הסחורה תישאר בבעלות ${esc(biz.name)} עד לפרעון סופי של החשבון.${isAlloc ? ` מספר הקצאה: <b class="mono">${esc(inv.allocation)}</b>.` : ''}`}
+      </div>
+      <div class="signatures">
+        <div class="sig">
+          <div class="sig__line"></div>
+          <span class="sig__lbl">חתימת מורשה חתימה</span>
+          <span class="sig__sub">${esc(biz.name)} · ${esc(inv.date)}</span>
+        </div>
+        <div class="sig">
+          <div class="sig__line"></div>
+          <span class="sig__lbl">${isCombo ? 'חתימת מקבל הסחורה' : 'חתימת הלקוח'}</span>
+          <span class="sig__sub">תאריך קבלה</span>
+        </div>
+      </div>
+      ${bottombar(inv.type || 'חשבונית מס')}
+    </div>
+  </section>`;
+}
+
+/* ── Receipt ── */
+function renderReceipt(rec, biz, invoices) {
+  const linked = (invoices || []).find(i => i.id === rec.invoice);
+  return `
+  <section class="sheet">
+    <div class="copy-stamp"><span class="stamp">מקור</span></div>
+    ${lh(biz)}
+
+    <div class="title-strip">
+      <div>
+        <div class="subtype">RECEIPT</div>
+        <h1>קבלה</h1>
+      </div>
+      <div class="docmeta">
+        <div class="docmeta__item">
+          <div class="lbl">תאריך קבלה</div>
+          <div class="val">${esc(rec.date)}</div>
+        </div>
+        ${rec.invoice ? `
+        <div class="docmeta__item">
+          <div class="lbl">בגין חשבונית</div>
+          <div class="val mono" style="font-size:14px;">№ ${esc(rec.invoice)}</div>
+        </div>` : ''}
+        <div class="docmeta__item">
+          <div class="lbl">קבלה מס'</div>
+          <div class="val num">№ ${esc(rec.id)}</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="parties">
+      <div class="party">
+        <div class="party__lbl">${S.user} קיבלנו מ-</div>
+        <div class="party__name">${esc(rec.customer)}</div>
+      </div>
+      <div class="party muted">
+        <div class="party__lbl">${S.check} עבור</div>
+        <div class="party__lines" style="font-size:12.5px;">
+          ${rec.invoice ? `<div class="row"><b>פירעון חשבונית מס' ${esc(rec.invoice)}</b></div>` : ''}
+          ${linked      ? `<div class="row">${esc(/[א-ת]/.test(linked.type || '') ? linked.type : 'חשבונית מס')}</div>` : ''}
+          <div class="row"><b>אסמכתא:</b> ${esc(rec.id)}</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="payment-card">
+      <div class="payment-card__left">
+        <div>
+          <div class="payment-card__lbl">סכום ששולם</div>
+          <div class="payment-card__amount">${fmt(rec.amount)}</div>
+        </div>
+      </div>
+      <div class="payment-card__right">
+        <div class="pay-row">
+          <span class="l">סוג תשלום</span>
+          <span class="v"><span class="method-chip">${S.cc} ${esc(rec.method || '')}</span></span>
+        </div>
+        ${rec.card    ? `<div class="pay-row"><span class="l">4 ספרות אחרונות</span><span class="v mono">**** ${esc(rec.card)}</span></div>` : ''}
+        ${rec.invoice ? `<div class="pay-row"><span class="l">בגין חשבונית</span><span class="v mono">№ ${esc(rec.invoice)}</span></div>` : ''}
+        <div class="pay-row"><span class="l">תאריך</span><span class="v mono">${esc(rec.date)}</span></div>
+        <div class="pay-row"><span class="l">סטטוס</span><span class="v" style="color:var(--success);">&#9679; נפרע במלואו</span></div>
+      </div>
+    </div>
+
+    <div class="foot" style="margin-top:32px;">
+      <div class="legal">
+        קבלה זו מאשרת קבלת תשלום מ-<b>${esc(rec.customer)}</b> בסך <b>${fmt(rec.amount)}</b>${rec.invoice ? ` בגין חשבונית מס' ${esc(rec.invoice)}` : ''}.
+        <b>תודה שבחרתם להיות חלק מהמשפחה שלנו.</b>
+      </div>
+      <div class="signatures">
+        <div class="sig">
+          <div class="sig__line"></div>
+          <span class="sig__lbl">חתימת מורשה חתימה</span>
+          <span class="sig__sub">${esc(biz.name)} · ${esc(rec.date)}</span>
+        </div>
+        <div class="sig">
+          <div class="sig__line"></div>
+          <span class="sig__lbl">חותמת העסק</span>
+          <span class="sig__sub">חותמת + תאריך</span>
+        </div>
+      </div>
+      ${bottombar('קבלה')}
+    </div>
+  </section>`;
+}
+
+/* ── Work order ── */
+function renderOrder(ord, biz) {
+  const price   = parseFloat(ord.price) || 0;
+  const vat     = +(price * biz.vatRate / 100).toFixed(2);
+  const total   = +(price + vat).toFixed(2);
+  const received = (ord.received || (ord.created_at || '').slice(0, 10) || '—');
+
+  const specs = [
+    { l: 'סוג מוצר', v: ord.product },
+    { l: 'כמות',     v: ord.qty     },
+    { l: 'מידות',    v: ord.size    },
+    { l: 'נייר',     v: ord.paper   },
+    { l: 'צבעים',    v: ord.colors  },
+    { l: 'גימור',    v: ord.finish  },
+  ].filter(s => s.v);
+
+  const cols = Math.min(specs.length || 4, 4);
+
+  return `
+  <section class="sheet">
+    ${lh(biz)}
+
+    <div class="title-strip">
+      <div>
+        <div class="subtype">WORK ORDER · פנימי</div>
+        <h1>הזמנת עבודה</h1>
+      </div>
+      <div class="docmeta">
+        <div class="docmeta__item">
+          <div class="lbl">תאריך פתיחה</div>
+          <div class="val">${esc(received)}</div>
+        </div>
+        ${ord.due ? `
+        <div class="docmeta__item">
+          <div class="lbl">תאריך אספקה</div>
+          <div class="val" style="color:var(--danger)">${esc(ord.due)}</div>
+        </div>` : ''}
+        <div class="docmeta__item">
+          <div class="lbl">מספר הזמנה</div>
+          <div class="val num">${esc(ord.id)}</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="parties">
+      <div class="party">
+        <div class="party__lbl">${S.user} פרטי לקוח</div>
+        <div class="party__name">${esc(ord.customer)}</div>
+        ${ord.contact ? `<div class="party__lines"><div class="row">${esc(ord.contact)}</div></div>` : ''}
+      </div>
+      <div class="party">
+        <div class="party__lbl">${S.mon} משאבי ייצור</div>
+        <div class="party__lines">
+          ${ord.assignee                    ? `<div class="row"><b>אחראי:</b> ${esc(ord.assignee)}</div>` : ''}
+          ${ord.printer && ord.printer!=='—' ? `<div class="row"><b>מכונה:</b> ${esc(ord.printer)}</div>` : ''}
+          ${ord.priority==='high'            ? `<div class="row"><b>עדיפות:</b> <span style="color:var(--danger);font-weight:600;">&#9679; דחוף</span></div>` : ''}
+        </div>
+      </div>
+    </div>
+
+    ${specs.length ? `
+    <div class="spec-grid" style="grid-template-columns:repeat(${cols},1fr);">
+      ${specs.map(s => `
+      <div class="spec-cell">
+        <div class="lbl">${esc(s.l)}</div>
+        <div class="val${/^\d/.test(String(s.v)) ? ' mono' : ''}">${esc(s.v)}</div>
+      </div>`).join('')}
+    </div>` : ''}
+
+    ${(ord.desc || ord.notes) ? `
+    <div class="notes-block" style="margin-top:20px;">
+      <div class="lbl">${S.edit} הנחיות ועיצוב</div>
+      <div class="box" style="min-height:80px;">
+        ${ord.desc ? esc(ord.desc) : ''}${ord.desc && ord.notes ? '<br/><br/>' : ''}${ord.notes ? '<b>הערות:</b> ' + esc(ord.notes) : ''}
+      </div>
+    </div>` : ''}
+
+    ${price > 0 ? `
+    <div class="totals" style="margin-top:20px;max-width:280px;margin-inline-start:auto;">
+      <div class="row"><span class="l">תמחור עבודה</span><span class="v">${fmt(price)}</span></div>
+      <div class="row"><span class="l">מע"מ ${biz.vatRate}%</span><span class="v">${fmt(vat)}</span></div>
+      <div class="grand"><span class="l">סה"כ</span><span class="v">${fmt(total)}</span></div>
+    </div>` : ''}
+
+    <div class="foot">
+      <div class="legal">
+        מסמך פנימי לייצור בלבד — אינו חשבונית מס. כל הקבצים נשמרים בשרת ${esc(biz.name)} למשך 90 יום.
+      </div>
+      <div class="signatures" style="grid-template-columns:1fr 1fr 1fr;">
+        <div class="sig"><div class="sig__line"></div><span class="sig__lbl">פתח הזמנה</span><span class="sig__sub">פקיד/ת קבלה</span></div>
+        <div class="sig"><div class="sig__line"></div><span class="sig__lbl">אישור מעצב</span><span class="sig__sub">חתימה + תאריך</span></div>
+        <div class="sig"><div class="sig__line"></div><span class="sig__lbl">סיום ובדיקת איכות</span><span class="sig__sub">מפעיל מכונה</span></div>
+      </div>
+      ${bottombar('הזמנת עבודה')}
+    </div>
+  </section>`;
+}
+
+/* ── Error ── */
+function showError(msg) {
+  document.getElementById('doc-root').innerHTML =
+    `<div style="text-align:center;padding:80px;color:#C25A5A;font-size:15px;">${esc(msg)}</div>`;
+}
+
+/* ── Download PDF ── */
+async function downloadPDF() {
+  const btn = document.getElementById('btnPDF');
+  btn.textContent = 'מוריד...';
+  btn.disabled = true;
+  try {
+    const el = document.querySelector('.sheet');
+    await document.fonts.ready;
+    await html2pdf().set({
+      margin: 0,
+      filename: `${docId}.pdf`,
+      html2canvas: {
+        scale: 2, useCORS: true, allowTaint: true, logging: false,
+        onclone: (doc) => {
+          const walker = doc.createTreeWalker(doc.body, NodeFilter.SHOW_TEXT, null, false);
+          let node;
+          while ((node = walker.nextNode()) !== null) {
+            if (node.textContent.includes(' ')) {
+              node.textContent = node.textContent.replace(/ /g, ' ');
+            }
+          }
+        },
+      },
+      jsPDF: { unit: 'px', format: [794, 1125], orientation: 'portrait' },
+    }).from(el).save();
+  } catch (e) {
+    alert('שגיאה בהורדת PDF: ' + e.message);
+  }
+  btn.innerHTML = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4M7 10l5 5 5-5M12 15V3"/></svg> הורד PDF';
+  btn.disabled = false;
+}
+
+/* ── Main ── */
+async function init() {
+  try {
+    const [data, settings] = await Promise.all([
+      fetch('/api/data').then(r => r.json()),
+      fetch('/api/settings').then(r => r.json()),
+    ]);
+    const biz = {
+      name:    settings.business_name    || "מג'יק פרינט",
+      vat:     settings.business_vat     || '056062813',
+      phone:   settings.business_phone   || '02-5373838',
+      email:   settings.business_email   || 'megicprint95@gmail.com',
+      address: settings.business_address || 'אוהלי יוסף 3, ירושלים',
+      vatRate: settings.vat_rate         || 18,
+    };
+
+    let html = '';
+
+    if (docType === 'invoice') {
+      const inv = (data.INVOICES || []).find(i => i.id === docId);
+      if (!inv) { showError('חשבונית לא נמצאה: ' + docId); return; }
+      document.getElementById('doc-title').textContent    = inv.type || 'חשבונית מס';
+      document.getElementById('doc-subtitle').textContent = docId + ' · ' + (inv.customer || '');
+      html = renderInvoice(inv, biz);
+
+    } else if (docType === 'receipt') {
+      const rec = (data.RECEIPTS || []).find(r => r.id === docId);
+      if (!rec) { showError('קבלה לא נמצאה: ' + docId); return; }
+      document.getElementById('doc-title').textContent    = 'קבלה';
+      document.getElementById('doc-subtitle').textContent = docId + ' · ' + (rec.customer || '');
+      html = renderReceipt(rec, biz, data.INVOICES || []);
+
+    } else if (docType === 'order') {
+      const ord = (data.ORDERS || []).find(o => o.id === docId);
+      if (!ord) { showError('הזמנה לא נמצאה: ' + docId); return; }
+      document.getElementById('doc-title').textContent    = 'הזמנת עבודה';
+      document.getElementById('doc-subtitle').textContent = docId + ' · ' + (ord.customer || '');
+      html = renderOrder(ord, biz);
+
+    } else {
+      showError('סוג מסמך לא ידוע: ' + docType);
+      return;
+    }
+
+    document.getElementById('doc-root').innerHTML = html;
+  } catch (e) {
+    showError('שגיאה בטעינת המסמך: ' + e.message);
+  }
+}
+
+init();
+</script>
+</body>
+</html>

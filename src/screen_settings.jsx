@@ -472,6 +472,153 @@ const ChangePasswordForm = () => {
   );
 };
 
+// ── Bit payment tab ───────────────────────────────────────────────────────────
+const BitTab = () => {
+  const [status,  setStatus]  = React.useState(null);
+  const [clientId,  setClientId]  = React.useState('');
+  const [clientSec, setClientSec] = React.useState('');
+  const [saving,  setSaving]  = React.useState(false);
+  const [polling, setPolling] = React.useState(false);
+  const [msg,     setMsg]     = React.useState(null);
+
+  const loadStatus = () =>
+    fetch('/api/bit/status').then(r => r.json()).then(setStatus).catch(() => {});
+
+  React.useEffect(() => { loadStatus(); }, []);
+
+  const saveConfig = async () => {
+    setSaving(true); setMsg(null);
+    try {
+      const r = await fetch('/api/bit/config', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ client_id: clientId, client_secret: clientSec }),
+      });
+      const d = await r.json();
+      if (d.error) throw new Error(d.error);
+      setMsg({ ok: true, text: 'פרטי API נשמרו בהצלחה' });
+    } catch (e) { setMsg({ ok: false, text: e.message }); }
+    setSaving(false);
+  };
+
+  const connect = () => {
+    window.open('/api/bit/auth', '_blank', 'width=600,height=700,noopener');
+    setTimeout(loadStatus, 6000);
+  };
+
+  const pollNow = async () => {
+    setPolling(true); setMsg(null);
+    try {
+      const r = await fetch('/api/bit/poll', { method: 'POST' });
+      const d = await r.json();
+      if (d.error) throw new Error(d.error);
+      setMsg({ ok: true, text: 'בדיקה בוצעה — בדוק את הפעמון לעדכונים' });
+      await loadStatus();
+    } catch (e) { setMsg({ ok: false, text: e.message }); }
+    setPolling(false);
+  };
+
+  const disconnect = async () => {
+    if (!window.confirm('לנתק את החשבון מ-Bit?')) return;
+    await fetch('/api/bit/disconnect', { method: 'POST' });
+    await loadStatus();
+    setMsg({ ok: true, text: 'נותק מחשבון Bit' });
+  };
+
+  return (
+    <>
+      <SSection title="חיבור לחשבון Bit" subtitle="קבל התרעה בכל תשלום Bit שמתקבל בחשבונך">
+        <div style={{
+          padding: '12px 16px', borderRadius: 10, marginBottom: 20,
+          background: 'var(--warn-soft)', border: '1px solid var(--warn)',
+          fontSize: 13, color: '#7a5f00', lineHeight: 1.7,
+        }}>
+          <b>דרישות מקדמיות:</b><br />
+          יש להירשם כ-TPP ב-<b>developer.bitpay.co.il</b> ולקבל אישור לפני שימוש ב-API.
+          לאחר אישור תקבל Client ID ו-Client Secret.
+        </div>
+
+        {/* Status */}
+        <div style={{
+          display: 'flex', alignItems: 'center', gap: 12,
+          padding: '12px 16px', borderRadius: 10, marginBottom: 18,
+          background: status?.connected ? 'var(--success-soft)' : 'var(--bg-deep)',
+          border: `1px solid ${status?.connected ? 'var(--success)' : 'var(--border)'}`,
+        }}>
+          <div style={{
+            width: 36, height: 36, borderRadius: 9, flexShrink: 0,
+            background: status?.connected ? 'var(--success-soft)' : 'var(--bg-deep)',
+            border: `1px solid ${status?.connected ? 'var(--success)' : 'var(--border)'}`,
+            display: 'grid', placeItems: 'center',
+            color: status?.connected ? 'var(--success)' : 'var(--text-muted)',
+          }}>
+            <Icon name={status?.connected ? 'check-circle' : 'credit-card'} size={18} />
+          </div>
+          <div style={{ flex: 1 }}>
+            <div style={{ fontWeight: 700, fontSize: 14 }}>
+              {status === null ? 'טוען...' : status.connected ? '✓ מחובר לחשבון Bit' : 'לא מחובר'}
+            </div>
+            {status?.account_id && (
+              <div style={{ fontSize: 12, color: 'var(--text-muted)', marginTop: 2 }}>
+                מזהה חשבון: <span style={{ fontFamily: 'monospace' }}>{status.account_id}</span>
+              </div>
+            )}
+          </div>
+          {status?.connected && (
+            <button className="btn sm ghost" onClick={disconnect}>
+              <Icon name="x" size={13} /> נתק
+            </button>
+          )}
+        </div>
+
+        {/* Credentials */}
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 14, marginBottom: 14 }}>
+          <div>
+            <SLabel>Client ID</SLabel>
+            <SInput value={clientId} onChange={e => setClientId(e.target.value)} placeholder="מפורטל developer.bitpay.co.il" />
+          </div>
+          <div>
+            <SLabel>Client Secret</SLabel>
+            <SInput type="password" value={clientSec} onChange={e => setClientSec(e.target.value)} placeholder="••••••••" />
+          </div>
+        </div>
+
+        <div style={{ display: 'flex', gap: 10, alignItems: 'center', marginBottom: 16, flexWrap: 'wrap' }}>
+          <button className="btn teal" onClick={saveConfig} disabled={saving || (!clientId && !clientSec)}>
+            {saving ? '...' : 'שמור פרטי API'}
+          </button>
+          <button className="btn" style={{ background: '#1A56DB', color: '#fff', border: 'none' }} onClick={connect}>
+            <Icon name="refresh" size={14} /> התחבר לחשבון Bit
+          </button>
+          {status?.connected && (
+            <button className="btn ghost" onClick={pollNow} disabled={polling}>
+              <Icon name="clock" size={14} /> {polling ? 'בודק...' : 'בדוק עכשיו'}
+            </button>
+          )}
+        </div>
+
+        {msg && (
+          <div style={{
+            marginBottom: 14, padding: '10px 14px', borderRadius: 9, fontSize: 13,
+            background: msg.ok ? 'var(--success-soft)' : 'var(--danger-soft)',
+            color:      msg.ok ? 'var(--success)'      : 'var(--danger)',
+          }}>
+            {msg.ok ? '✓ ' : '✗ '}{msg.text}
+          </div>
+        )}
+
+        <div style={{ fontSize: 12, color: 'var(--text-muted)', lineHeight: 1.8, background: 'var(--bg-deep)', padding: '12px 16px', borderRadius: 10 }}>
+          <b>איך זה עובד:</b><br />
+          1. שמור Client ID ו-Secret<br />
+          2. לחץ "התחבר לחשבון Bit" ואשר גישה בדף שייפתח<br />
+          3. המערכת בודקת תשלומים חדשים אוטומטית כל 5 דקות<br />
+          4. כל תשלום Bit חדש יופיע כהתרעה בפעמון
+        </div>
+      </SSection>
+    </>
+  );
+};
+
 // ── Tab ids ───────────────────────────────────────────────────────────────────
 const TABS = [
   { id: 'business', label: 'פרטי העסק',          icon: 'building'     },
@@ -480,6 +627,7 @@ const TABS = [
   { id: 'lan',      label: 'רשת LAN',             icon: 'qr'           },
   { id: 'backup',   label: 'גיבוי',               icon: 'box'          },
   { id: 'security', label: 'אבטחה',               icon: 'lock'         },
+  { id: 'bit',      label: 'Bit',                 icon: 'credit-card'  },
   { id: 'about',    label: 'אודות',                icon: 'info'         },
 ];
 
@@ -817,6 +965,9 @@ const ScreenSettings = () => {
         </>
       )}
 
+      {/* ── Bit ──────────────────────────────────────────────────────────────── */}
+      {tab === 'bit' && <BitTab />}
+
       {/* ── אודות ────────────────────────────────────────────────────────────── */}
       {tab === 'about' && (
         <SSection title="אודות המערכת" subtitle="">
@@ -825,7 +976,7 @@ const ScreenSettings = () => {
             <div>
               <div style={{ fontWeight: 800, fontSize: 22, marginBottom: 4 }}>מג'יק פרינט</div>
               <div style={{ fontSize: 13, color: 'var(--text-muted)', marginBottom: 12 }}>
-                מערכת ניהול בית דפוס — גרסה 1.1.0
+                מערכת ניהול בית דפוס — גרסה 1.2.0
               </div>
               <div style={{ fontSize: 13, color: 'var(--text-muted)', lineHeight: 1.7 }}>
                 <div>בעל העסק: {settings.business_owner || 'אלי אליאס'}</div>
