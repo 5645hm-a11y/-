@@ -872,7 +872,7 @@ const ScreenSettings = () => {
                     {updateInfo.downloadUrl ? (
                       updateDone ? (
                         <div style={{ fontSize: 13, color: 'var(--success)', fontWeight: 600 }}>
-                          ✓ ההתקנה הופעלה — המתן לחלון המתקין
+                          ✓ מתקין... האפליקציה תיסגר ותיפתח מחדש אוטומטית
                         </div>
                       ) : (
                         <button className="btn teal" onClick={installUpdate} disabled={updateDownloading}>
@@ -976,7 +976,7 @@ const ScreenSettings = () => {
             <div>
               <div style={{ fontWeight: 800, fontSize: 22, marginBottom: 4 }}>מג'יק פרינט</div>
               <div style={{ fontSize: 13, color: 'var(--text-muted)', marginBottom: 12 }}>
-                מערכת ניהול בית דפוס — גרסה 1.2.0
+                מערכת ניהול בית דפוס — גרסה 1.2.1
               </div>
               <div style={{ fontSize: 13, color: 'var(--text-muted)', lineHeight: 1.7 }}>
                 <div>בעל העסק: {settings.business_owner || 'אלי אליאס'}</div>

@@ -13,7 +13,14 @@
       "Bash(powershell -Command \"Get-WmiObject -Class Win32_Printer | Select-Object Name, DriverName, PortName, PrinterStatus, WorkOffline, Local, Network, Shared, Default | ConvertTo-Json\")",
       "Bash(pkill -f \"node server.js\")",
       "Bash(node server.js)",
-      "Bash(powershell -Command \"Get-PrinterProperty -PrinterName 'Xerox Phaser 3020' -ErrorAction SilentlyContinue | ConvertTo-Json\")"
+      "Bash(powershell -Command \"Get-PrinterProperty -PrinterName 'Xerox Phaser 3020' -ErrorAction SilentlyContinue | ConvertTo-Json\")",
+      "PowerShell(winget install --id GitHub.cli --silent --accept-package-agreements --accept-source-agreements 2>&1)",
+      "PowerShell(Stop-Process -Name node -Force -ErrorAction SilentlyContinue)",
+      "PowerShell(Invoke-RestMethod -Uri \"http://localhost:3000/api/data\" -Method Get)",
+      "Bash(node -e ' *)",
+      "Bash(Get-ChildItem -Path \"e:\\\\Développement\\\\מג'יק\" -Recurse -Include \"*.js\",\"*.jsx\")",
+      "Bash(Select-Object FullName, Length)",
+      "Bash(Format-Table -AutoSize)"
     ],
     "additionalDirectories": [
       "e:\\D�veloppement\\??'??"

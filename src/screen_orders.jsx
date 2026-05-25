@@ -242,6 +242,10 @@ const OrderDetailModal = ({ order, onClose }) => {
             </button>
           )}
 
+          <button className="btn ghost" onClick={() => window.open(`documents.html?type=order&id=${encodeURIComponent(order.id)}`, '_blank', 'width=960,height=1100,menubar=no,toolbar=no')}>
+            <Icon name="download" size={14} /> הדפס הזמנה
+          </button>
+
           <div style={{ marginInlineStart: 'auto', display: 'flex', gap: 8, alignItems: 'center' }}>
             {saved && <span style={{ fontSize: 13, color: 'var(--success)', fontWeight: 600 }}>✓ נשמר</span>}
             <button className="btn teal" onClick={handleSave} disabled={busy}>

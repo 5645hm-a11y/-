@@ -1,6 +1,6 @@
 {
   "name": "magic-print",
-  "version": "1.2.0",
+  "version": "1.2.1",
   "description": "מג'יק פרינט - מערכת ניהול בית דפוס",
   "main": "main.js",
   "scripts": {
@@ -25,10 +25,11 @@
       "icon": "build/icon.png"
     },
     "nsis": {
-      "oneClick": false,
-      "allowToChangeInstallationDirectory": true,
+      "oneClick": true,
+      "perMachine": false,
       "createDesktopShortcut": true,
       "createStartMenuShortcut": true,
+      "runAfterFinish": true,
       "language": "1037"
     },
     "files": [

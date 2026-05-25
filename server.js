@@ -865,7 +865,7 @@ function startServer(preferredPort) {
       }
     });
 
-    // ── POST /api/update/install — download asset and launch installer ────────
+    // ── POST /api/update/install — download, quit app, run silent installer ─────
     app.post('/api/update/install', async (req, res) => {
       try {
         const { downloadUrl, assetName } = req.body;
@@ -873,13 +873,27 @@ function startServer(preferredPort) {
         const tmpPath = path.join(require('os').tmpdir(), assetName);
         const dl = await fetch(downloadUrl, { headers: { 'User-Agent': 'magic-print-app' } });
         if (!dl.ok) throw new Error(`הורדה נכשלה: ${dl.status}`);
-        const buf = Buffer.from(await dl.arrayBuffer());
-        fs.writeFileSync(tmpPath, buf);
-        // Launch installer detached so it survives this process exiting
+        fs.writeFileSync(tmpPath, Buffer.from(await dl.arrayBuffer()));
+
+        // PowerShell: wait 4s for this process to exit, then install silently (/S = NSIS silent mode)
         const { spawn } = require('child_process');
-        const child = spawn(tmpPath, [], { detached: true, stdio: 'ignore', windowsHide: false });
-        child.unref();
+        const safePath = tmpPath.replace(/'/g, "''");
+        const ps = spawn('powershell', [
+          '-NonInteractive', '-WindowStyle', 'Hidden', '-Command',
+          `Start-Sleep -Seconds 4; Start-Process -FilePath '${safePath}' -ArgumentList '/S'`,
+        ], { detached: true, stdio: 'ignore' });
+        ps.unref();
+
         res.json({ success: true });
+
+        // Quit the Electron app — allows installer to run without "cannot be closed" error
+        setTimeout(() => {
+          try {
+            const { app: eApp } = require('electron');
+            eApp.isQuitting = true;
+            eApp.quit();
+          } catch {}
+        }, 1500);
       } catch (err) {
         res.status(500).json({ error: err.message });
       }
