@@ -11,6 +11,7 @@ permissions:
 jobs:
   build:
     runs-on: ubuntu-latest
+    timeout-minutes: 30
 
     steps:
       - name: Checkout
@@ -20,82 +21,51 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: '22'
+          cache: 'npm'
 
       - name: Install npm dependencies
-        run: npm install
+        run: npm ci
 
       - name: Install wine + 7zip
         run: |
+          sudo dpkg --add-architecture i386
           sudo apt-get update -qq
-          sudo apt-get install -y wine wine64 p7zip-full
-
-      # electron-builder uses rcedit-ia32.exe (32-bit) via wine to stamp the
-      # version into the EXE — but wine32 is not available on ubuntu-latest.
-      # Pre-download winCodeSign and swap rcedit-ia32 for the x64 variant so
-      # that wine64 can run it.
-      - name: Pre-download & patch winCodeSign (rcedit ia32 → x64)
-        run: |
-          WCSVER="2.6.0"
-          CACHEDIR="$HOME/.cache/electron-builder/winCodeSign/winCodeSign-${WCSVER}"
-          mkdir -p "$CACHEDIR"
-          cd /tmp
-          wget -q "https://github.com/electron-userland/electron-builder-binaries/releases/download/winCodeSign-${WCSVER}/winCodeSign-${WCSVER}.7z"
-          7z x "winCodeSign-${WCSVER}.7z" -o"${CACHEDIR}/" -y > /dev/null
-          cp "${CACHEDIR}/rcedit-x64.exe" "${CACHEDIR}/rcedit-ia32.exe"
-          echo "✓ rcedit patched (ia32 → x64)"
-
-      # electron-builder on Linux calls wine to run the NSIS installer stub
-      # in order to extract the uninstaller binary.  A pure-JS reader
-      # (UninstallerReader) already exists in the codebase and is used on
-      # macOS Catalina — we extend it to Linux so wine32 is not needed.
-      - name: Patch electron-builder NSIS target (UninstallerReader on Linux)
-        run: |
-          node -e "
-            const fs = require('fs');
-            const f = 'node_modules/app-builder-lib/out/targets/nsis/NsisTarget.js';
-            let src = fs.readFileSync(f, 'utf8');
-            const patched = src.replace(
-              'on_1.isMacOsCatalina)()) {',
-              'on_1.isMacOsCatalina)() || process.platform === \"linux\") {'
-            );
-            if (patched === src) { console.error('Pattern not found — may already be patched or version changed'); }
-            else { fs.writeFileSync(f, patched); console.log('✓ NsisTarget.js patched'); }
-          "
+          sudo apt-get install -y wine wine64 wine32 p7zip-full
+          wine --version
 
       - name: Build Windows installer
         run: npm run build
         env:
           DISPLAY: ""
           WINEDEBUG: -all
+          DEBUG: electron-builder
+
+      - name: List dist output
+        run: ls -lh dist/
 
       - name: Rename installer to ASCII filename
         id: rename
         run: |
           VERSION=$(node -p "require('./package.json').version")
           echo "VERSION=${VERSION}" >> "$GITHUB_ENV"
-          # find the generated EXE (skip the uninstaller stub)
           SRC=$(find dist -maxdepth 1 -name "*.exe" ! -name "__uninstaller*" | head -1)
+          echo "Found EXE: $SRC"
           DEST="dist/Setup.${VERSION}.exe"
           cp "$SRC" "$DEST"
           echo "installer=${DEST}" >> "$GITHUB_OUTPUT"
-          echo "✓ installer: $DEST ($(du -sh "$DEST" | cut -f1))"
+          ls -lh "$DEST"
 
-      - name: Create GitHub Release and upload installer
-        uses: softprops/action-gh-release@v2
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v1
         with:
           tag_name: v${{ env.VERSION }}
-          name: "גרסה ${{ env.VERSION }} — תיקון קריסה לאחר עדכון"
+          name: "v${{ env.VERSION }} - Fix crash after cancelled update"
           body: |
-            ## גרסה ${{ env.VERSION }}
+            ## Version ${{ env.VERSION }}
 
-            ### בעיות שתוקנו
-            - ✅ תיקון קריסה: `Object has been destroyed` בפתיחת האפליקציה לאחר ביטול עדכון
-            - ✅ תיקון מתקין: לא עוד "cannot be closed" כשהאפליקציה ב-Tray
-            - ✅ תיקון ביטול עדכון: כפתור ביטול במהלך עדכון עובד כראוי
-            - ✅ שיפור יציבות: בדיקות `isDestroyed()` בכל גישה לחלון הראשי
-
-            ### התקנה
-            הורד את `Setup.${{ env.VERSION }}.exe` והרץ — ההתקנה שקטה ואוטומטית.
+            ### Fixed
+            - App crash (Object has been destroyed) after cancelling an update
+            - Installer "cannot be closed" error on tray apps
+            - Update cancel button now works correctly
           files: ${{ steps.rename.outputs.installer }}
-          make_latest: "true"
-          token: ${{ secrets.GITHUB_TOKEN }}
+          make_latest: true
