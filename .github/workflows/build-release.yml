@@ -39,7 +39,7 @@ jobs:
         id: build
         shell: pwsh
         run: |
-          npm run build 2>&1 | Tee-Object -FilePath build-log.txt
+          npx electron-builder --win --x64 --publish never 2>&1 | Tee-Object -FilePath build-log.txt
           if ($LASTEXITCODE -ne 0) {
             throw "Build failed (exit $LASTEXITCODE)"
           }
