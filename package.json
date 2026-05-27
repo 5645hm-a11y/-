@@ -30,7 +30,8 @@
       "createDesktopShortcut": true,
       "createStartMenuShortcut": true,
       "runAfterFinish": true,
-      "language": "1037"
+      "language": "1037",
+      "include": "build/installer.nsh"
     },
     "files": [
       "**/*",
@@ -38,7 +39,8 @@
       "!dist/**",
       "!*.md",
       "!start.bat",
-      "!magic_print.db"
+      "!magic_print.db",
+      "!build/installer.nsh"
     ],
     "directories": {
       "output": "dist"
