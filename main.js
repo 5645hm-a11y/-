@@ -25,11 +25,19 @@ if (!app.requestSingleInstanceLock()) {
   app.quit(); // another instance already running
 } else {
   app.on('second-instance', () => {
-    if (mainWindow && !mainWindow.isDestroyed()) {
-      if (mainWindow.isMinimized() || !mainWindow.isVisible()) mainWindow.show();
-      mainWindow.focus();
-    } else if (!mainWindow) {
-      // Window was destroyed (e.g. after a cancelled/failed update); recreate it
+    try {
+      if (mainWindow && !mainWindow.isDestroyed()) {
+        if (mainWindow.isMinimized() || !mainWindow.isVisible()) mainWindow.show();
+        mainWindow.focus();
+      } else {
+        // Window is null or destroyed — recreate it
+        mainWindow = null;
+        createWindow();
+      }
+    } catch (err) {
+      // Defensive: if mainWindow is in an unexpected state, reset and recreate
+      console.error('second-instance handler error:', err.message);
+      mainWindow = null;
       createWindow();
     }
   });
@@ -135,10 +143,16 @@ app.on('window-all-closed', () => {
 });
 
 app.on('activate', () => {
-  if (mainWindow && !mainWindow.isDestroyed()) {
-    mainWindow.show();
-  } else if (!mainWindow) {
-    // Recreate the window if it was destroyed (e.g. after a cancelled/failed update)
+  try {
+    if (mainWindow && !mainWindow.isDestroyed()) {
+      mainWindow.show();
+    } else {
+      mainWindow = null;
+      createWindow();
+    }
+  } catch (err) {
+    console.error('activate handler error:', err.message);
+    mainWindow = null;
     createWindow();
   }
 });

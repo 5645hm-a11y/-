@@ -65,15 +65,16 @@ jobs:
         uses: softprops/action-gh-release@v2
         with:
           tag_name: v${{ env.VERSION }}
-          name: "v${{ env.VERSION }} - Fix crash after cancelled update"
+          name: "v${{ env.VERSION }} - Fix startup crash after update"
           body: |
             ## Version ${{ env.VERSION }}
 
             ### Fixed
-            - App crash (`Object has been destroyed`) after cancelling an update
+            - Startup crash (`Object has been destroyed`) when old version still running in tray
+            - Installer now kills old process BEFORE copying files (`customInit`) — prevents file-lock errors
+            - Added `try/catch` safety net in all window event handlers
             - Installer "cannot be closed" error when app is in system tray
-            - Update cancel button now properly aborts the scheduled quit
-            - Added `isDestroyed()` guards throughout main window access
+            - Update cancel button properly aborts the scheduled quit
           files: ${{ steps.rename.outputs.installer }}
           make_latest: true
 
