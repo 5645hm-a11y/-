@@ -25,9 +25,12 @@ if (!app.requestSingleInstanceLock()) {
   app.quit(); // another instance already running
 } else {
   app.on('second-instance', () => {
-    if (mainWindow) {
+    if (mainWindow && !mainWindow.isDestroyed()) {
       if (mainWindow.isMinimized() || !mainWindow.isVisible()) mainWindow.show();
       mainWindow.focus();
+    } else if (!mainWindow) {
+      // Window was destroyed (e.g. after a cancelled/failed update); recreate it
+      createWindow();
     }
   });
 }
@@ -73,6 +76,12 @@ function createWindow() {
     mainWindow.maximize();
   });
 
+  // Nullify reference when the window is actually destroyed
+  // so isDestroyed() checks on mainWindow are not needed everywhere
+  mainWindow.on('closed', () => {
+    mainWindow = null;
+  });
+
   mainWindow.webContents.setWindowOpenHandler(({ url }) => {
     shell.openExternal(url);
     return { action: 'deny' };
@@ -95,13 +104,13 @@ function createTray() {
   const menu = Menu.buildFromTemplate([
     { label: "מג'יק פרינט", enabled: false },
     { type: 'separator' },
-    { label: 'פתח', click: () => { mainWindow.show(); mainWindow.focus(); } },
+    { label: 'פתח', click: () => { if (mainWindow && !mainWindow.isDestroyed()) { mainWindow.show(); mainWindow.focus(); } } },
     { type: 'separator' },
     { label: 'יציאה', click: () => { app.isQuitting = true; app.quit(); } },
   ]);
 
   tray.setContextMenu(menu);
-  tray.on('double-click', () => { mainWindow.show(); mainWindow.focus(); });
+  tray.on('double-click', () => { if (mainWindow && !mainWindow.isDestroyed()) { mainWindow.show(); mainWindow.focus(); } });
   updateTrayTooltip();
 }
 
@@ -126,7 +135,12 @@ app.on('window-all-closed', () => {
 });
 
 app.on('activate', () => {
-  if (mainWindow) mainWindow.show();
+  if (mainWindow && !mainWindow.isDestroyed()) {
+    mainWindow.show();
+  } else if (!mainWindow) {
+    // Recreate the window if it was destroyed (e.g. after a cancelled/failed update)
+    createWindow();
+  }
 });
 
 app.on('before-quit', () => {

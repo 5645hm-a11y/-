@@ -408,6 +408,9 @@ function autoBackup() {
   }
 }
 
+// ─── Update quit timer — stored so it can be cancelled ───────────────────────
+let _updateQuitTimer = null;
+
 // ─── Dynamic port: try startPort … startPort+9 ───────────────────────────────
 function tryListen(server, startPort, host = '127.0.0.1') {
   return new Promise((resolve, reject) => {
@@ -886,8 +889,11 @@ function startServer(preferredPort) {
 
         res.json({ success: true });
 
-        // Quit the Electron app — allows installer to run without "cannot be closed" error
-        setTimeout(() => {
+        // Quit the Electron app — allows installer to run without "cannot be closed" error.
+        // Store the timer reference so /api/update/cancel can abort it if the user changes mind.
+        if (_updateQuitTimer) clearTimeout(_updateQuitTimer);
+        _updateQuitTimer = setTimeout(() => {
+          _updateQuitTimer = null;
           try {
             const { app: eApp } = require('electron');
             eApp.isQuitting = true;
@@ -897,6 +903,15 @@ function startServer(preferredPort) {
       } catch (err) {
         res.status(500).json({ error: err.message });
       }
+    });
+
+    // ── POST /api/update/cancel — abort a pending quit-for-update ────────────
+    app.post('/api/update/cancel', (req, res) => {
+      if (_updateQuitTimer) {
+        clearTimeout(_updateQuitTimer);
+        _updateQuitTimer = null;
+      }
+      res.json({ ok: true, cancelled: true });
     });
 
     // ── ITA helpers ───────────────────────────────────────────────────────────
